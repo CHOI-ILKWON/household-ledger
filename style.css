@@ -353,6 +353,20 @@ html[data-theme="dark"] .seg button.on,
 .chip{flex:0 0 auto;padding:6px 11px;border-radius:15px;background:var(--fill);font-size:13px;}
 .chip:active{background:var(--fill-2);}
 
+/* ===== 토스트 ===== */
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(14px);
+  bottom:calc(76px + env(safe-area-inset-bottom));
+  max-width:340px;width:calc(100% - 48px);
+  background:rgba(28,28,30,.94);color:#fff;
+  padding:12px 18px;border-radius:12px;font-size:13px;text-align:center;
+  z-index:60;opacity:0;pointer-events:none;
+  transition:opacity .22s ease,transform .22s ease;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
 .empty{padding:48px 24px;text-align:center;color:var(--label-3);font-size:14px;line-height:1.7;}
 .swatch{width:22px;height:22px;border-radius:11px;flex:0 0 auto;}
 .reorder{display:flex;gap:6px;}

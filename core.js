@@ -304,5 +304,101 @@ function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function pct(a,b){ return b > 0 ? Math.round(a/b*100) : 0; }
+
+/* ---------------- AI 분석용 텍스트 ---------------- */
+/** 한 회계월의 지출을 분류별로 묶는다 */
+function catAgg(r, bucket){
+  const map = {}; let total = 0;
+  for(const t of S.txns){
+    if(t.type !== 'expense' || t.excludeFromTotal) continue;
+    if(!inRange(t.date, r)) continue;
+    if(t.bucket !== bucket) continue;
+    (map[t.categoryId] = map[t.categoryId] || { amt:0, items:[] });
+    map[t.categoryId].amt += t.amount;
+    map[t.categoryId].items.push(t);
+    total += t.amount;
+  }
+  return { map, total, keys: Object.keys(map).sort((a,b)=>map[b].amt-map[a].amt) };
+}
+
+/** 붙여넣기만 하면 되는 한 달치 분석 요청문 */
+function analysisText(fm){
+  const r  = fiscalRange(fm.y, fm.m);
+  const pv = shiftMonth(fm, -1), pvR = fiscalRange(pv.y, pv.m);
+  const sm = summary(r), smPv = summary(pvR);
+  const L = [];
+  // 한글·한자는 고정폭 글꼴에서 2칸을 차지하므로 표시 폭으로 정렬한다
+  const dw = s => {
+    let w = 0;
+    for(const ch of String(s))
+      w += /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹯＀-｠￠-￦]/.test(ch) ? 2 : 1;
+    return w;
+  };
+  const pad = (s,n) => String(s) + ' '.repeat(Math.max(0, n - dw(s)));
+
+  L.push(`아래는 내 ${fmLabel(fm)} 가계부 기록이야.`);
+  L.push(`고정지출(대출·보험·공과금 등)은 이미 정해진 돈이라 이번 달에는 바꿀 수 없어.`);
+  L.push(`내가 조절할 수 있는 건 생활지출이니까 생활지출 위주로 분석해줘.`);
+  L.push(`줄일 여지가 있는 항목과, 지난달 대비 달라진 점을 짚어주면 좋겠어.`);
+  L.push('');
+  L.push(`■ 기간: ${fmLabel(fm)} (${r.start} ~ ${r.end})`);
+  L.push('');
+
+  L.push('■ 요약');
+  L.push(`  수입             ${fmt(sm.income)}원`);
+  L.push(`  고정지출         ${fmt(sm.fixed)}원`);
+  L.push(`  생활지출         ${fmt(sm.living)}원`);
+  if(sm.pending) L.push(`  대납(정산예정)   ${fmt(sm.pending)}원   ※ 내 지출 아님. 나중에 돌려받는 돈`);
+  L.push(`  쓸 수 있었던 돈  ${fmt(sm.income - sm.fixed)}원   (수입 − 고정지출)`);
+  L.push(`  남은 여유        ${fmt(sm.income - sm.fixed - sm.living)}원`);
+
+  const today = todayStr();
+  const endD  = today < r.end ? today : r.end;
+  const days  = Math.max(1, daysBetween(r.start, endD) + 1);
+  L.push(`  일 평균 생활지출 ${fmt(Math.round(sm.living/days))}원   (${days}일 경과 기준)`);
+
+  const dp = smPv.living > 0 ? Math.round((sm.living - smPv.living)/smPv.living*100) : null;
+  L.push(`  전월 생활지출    ${fmt(smPv.living)}원${dp===null ? '' : `   (${dp>0?'+':''}${dp}%)`}`);
+  L.push('');
+
+  const cur = catAgg(r, 'living'), prev = catAgg(pvR, 'living');
+  L.push('■ 생활지출 분류별 (괄호는 지난달)');
+  if(!cur.keys.length) L.push('  (없음)');
+  for(const k of cur.keys){
+    const p = prev.map[k] ? prev.map[k].amt : 0;
+    L.push(`  ${pad(catName(k),10)} ${pad(fmt(cur.map[k].amt)+'원', 12)} ${pad(pct(cur.map[k].amt, cur.total)+'%', 5)} (지난달 ${fmt(p)}원)`);
+  }
+  L.push(`  ${pad('합계',10)} ${fmt(cur.total)}원`);
+  L.push('');
+
+  const fx = catAgg(r, 'fixed');
+  L.push('■ 고정지출 분류별 (참고용, 조절 불가)');
+  if(!fx.keys.length) L.push('  (없음)');
+  for(const k of fx.keys) L.push(`  ${pad(catName(k),10)} ${fmt(fx.map[k].amt)}원`);
+  if(fx.keys.length) L.push(`  ${pad('합계',10)} ${fmt(fx.total)}원`);
+  L.push('');
+
+  L.push('■ 생활지출 상세 내역');
+  const items = [];
+  for(const k of cur.keys) items.push(...cur.map[k].items);
+  items.sort(cmpAsc);
+  if(!items.length) L.push('  (없음)');
+  for(const t of items){
+    L.push(`  ${t.date}  ${pad(catName(t.categoryId),8)} ${pad(t.memo||'-',18)} ${fmt(t.amount)}원`);
+  }
+  L.push('');
+
+  L.push('■ 현재 자산 잔액');
+  for(const g of S.groups){
+    const list = assetsOfGroup(g.id);
+    if(!list.length) continue;
+    for(const a of list){
+      const kind = a.kind === 'liability' ? ' [부채]' : a.kind === 'receivable' ? ' [받을돈]' : '';
+      L.push(`  ${pad(a.name,14)} ${fmt(balanceOf(a.id))}원${kind}`);
+    }
+  }
+
+  return L.join('\n');
+}
 function fixedColorVar(){ return S.settings.fixedColor === 'red' ? 'var(--living)' : 'var(--fixed)'; }
 function fixedClass(){ return S.settings.fixedColor === 'red' ? 'c-living' : 'c-fixed'; }

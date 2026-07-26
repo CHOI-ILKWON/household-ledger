@@ -492,6 +492,21 @@ function renderStats(){
     <div class="card">${rows}${keys.length?`<div class="total-row"><span>합계</span><span class="num">${won(total)}</span></div>`:''}</div>
   </div>
 
+  <div class="section">
+    <div class="section-title">AI 분석</div>
+    <div class="card">
+      <div class="row tap" data-act="copyAnalysis">
+        <div class="row-main"><div class="row-title">📋 ${fmLabel(ui.statFm)} 분석용 텍스트 복사</div>
+          <div class="row-sub">복사해서 AI에 붙여넣으면 이 달 지출을 분석해 줍니다</div></div>
+        <div class="chev">›</div>
+      </div>
+      <div class="row tap" data-act="previewAnalysis">
+        <div class="row-main"><div class="row-title c-lbl2">복사될 내용 보기</div></div>
+        <div class="chev">›</div>
+      </div>
+    </div>
+  </div>
+
   ${sm.pending?`<div class="section">
     <div class="section-title">대납 · 정산예정 (지출 미표기)</div>
     <div class="card"><div class="row"><div class="row-main"><div class="row-title">이번 달 대납액</div>

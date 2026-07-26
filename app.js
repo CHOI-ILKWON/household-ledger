@@ -186,8 +186,66 @@ const ACTS = {
     localStorage.removeItem(KEY); load(); ui.sub=null; go('home');
   },
 
+  /* AI 분석 */
+  copyAnalysis: ()=>{
+    const txt = analysisText(ui.statFm);
+    copyText(txt).then(ok=>{
+      if(ok) toast(`${fmLabel(ui.statFm)} 복사 완료 — AI에 붙여넣으세요`);
+      else openAnalysisSheet(txt, true);
+    });
+  },
+  previewAnalysis: ()=>openAnalysisSheet(analysisText(ui.statFm), false),
+
   /* 시트 */
   closeSheet, backdrop: closeSheet
+};
+
+/* ---------------- 클립보드 ---------------- */
+function fallbackCopy(t){
+  const ta = document.createElement('textarea');
+  ta.value = t;
+  ta.setAttribute('readonly','');
+  ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, t.length);
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  return ok;
+}
+function copyText(t){
+  if(navigator.clipboard && window.isSecureContext){
+    return navigator.clipboard.writeText(t).then(()=>true).catch(()=>fallbackCopy(t));
+  }
+  return Promise.resolve(fallbackCopy(t));
+}
+function toast(msg){
+  let el = document.getElementById('toast');
+  if(!el){ el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+function openAnalysisSheet(txt, failed){
+  const body = `
+    ${failed ? `<div class="hint" style="padding:14px 16px 0;color:var(--living)">
+      자동 복사가 막혔습니다. 아래 내용을 길게 눌러 전체 선택 후 복사해 주세요.</div>` : ''}
+    <div class="section" style="margin-top:12px"><div class="card">
+      <textarea id="ana-text" readonly style="width:100%;height:52vh;padding:14px;border:0;
+        background:none;color:var(--label);font-size:12px;line-height:1.6;resize:none;
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${esc(txt)}</textarea>
+    </div></div>
+    <button class="btn-wide primary" data-act="copyFromSheet">복사하기</button>
+    <div style="height:12px"></div>`;
+  sheet(`${fmLabel(ui.statFm)} 분석 요청문`, body, `<button data-act="closeSheet">닫기</button>`);
+}
+ACTS.copyFromSheet = ()=>{
+  const ta = document.getElementById('ana-text');
+  copyText(ta.value).then(ok=>{
+    if(ok){ closeSheet(); toast(`${fmLabel(ui.statFm)} 복사 완료 — AI에 붙여넣으세요`); }
+    else { ta.focus(); ta.select(); toast('길게 눌러 복사해 주세요'); }
+  });
 };
 
 function renderCatColorState(){}
