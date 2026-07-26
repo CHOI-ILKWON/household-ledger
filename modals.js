@@ -5,13 +5,16 @@
    ========================================================= */
 
 const MR = () => document.getElementById('modal-root');
-let draft = null;      // 내역 편집 중 데이터
-let editing = null;    // 자산/그룹/분류 편집 중 데이터
+let draft = null;        // 내역 편집 중 데이터
+let editing = null;      // 자산/그룹/분류 편집 중 데이터
+let returnToTxn = false; // 분류 추가 후 내역 시트로 돌아갈지
 
-function closeSheet(){ MR().innerHTML = ''; draft = null; editing = null; }
+function closeSheet(){ MR().innerHTML = ''; draft = null; editing = null; returnToTxn = false; }
 
 function sheet(title, body, left, right){
-  MR().innerHTML = `<div class="backdrop" data-act="backdrop"><div class="sheet" data-stop="1">
+  // 백드롭에는 data-act 를 두지 않는다. 위임 핸들러의 closest('[data-act]') 가
+  // 시트 안의 input 에서 위로 타고 올라와 시트를 닫아버린다.
+  MR().innerHTML = `<div class="backdrop"><div class="sheet">
     <div class="sheet-head">
       <div class="nav-btn">${left || `<button data-act="closeSheet">취소</button>`}</div>
       <div class="sheet-title">${esc(title)}</div>
@@ -54,7 +57,7 @@ function syncDraft(){
   if(q('f-amt'))  draft.amount = Number(String(q('f-amt').value).replace(/[^0-9]/g,'')) || 0;
   if(q('f-asset')) draft.assetId = q('f-asset').value;
   if(q('f-to'))   draft.toAssetId = q('f-to').value;
-  if(q('f-cat'))  draft.categoryId = q('f-cat').value;
+  if(q('f-cat') && q('f-cat').value !== '__new__') draft.categoryId = q('f-cat').value;
   if(q('f-memo')) draft.memo = q('f-memo').value;
 }
 
@@ -88,7 +91,8 @@ function renderTxnSheet(){
       ${isTr ? `<div class="field"><div class="field-k">입금</div>
         <select id="f-to" data-act="reRender">${opts(liveAssets().filter(a=>a.id!==draft.assetId), draft.toAssetId)}</select></div>` : `
       <div class="field"><div class="field-k">항목</div>
-        <select id="f-cat" data-act="catChange">${opts(cats, draft.categoryId)}</select></div>`}
+        <select id="f-cat" data-act="catChange">${opts(cats, draft.categoryId)}
+          <option value="__new__">＋ 새 항목 만들기…</option></select></div>`}
       <div class="field"><div class="field-k">내용</div>
         <input type="text" id="f-memo" placeholder="${isTr?'(선택)':'예) 점심 김치찌개'}" value="${esc(draft.memo)}"></div>
     </div></div>
@@ -148,6 +152,19 @@ function saveTxn(){
 function openAssetEditor(id, groupId){
   editing = id ? JSON.parse(JSON.stringify(assetById(id)))
                : { id:null, groupId, name:'', kind:'asset', initialBalance:0, archived:false };
+  renderAssetSheet();
+}
+/** 다시 그리기 전에 화면의 입력값을 editing 에 담아 둔다.
+ *  이걸 빼먹으면 종류 버튼을 누르는 순간 이름·잔액이 날아간다. */
+function syncAssetDom(){
+  const n = document.getElementById('e-name');
+  const g = document.getElementById('e-group');
+  const b = document.getElementById('e-bal');
+  if(n) editing.name = n.value;
+  if(g) editing.groupId = g.value;
+  if(b) editing.initialBalance = Number(String(b.value).replace(/[^0-9-]/g,'')) || 0;
+}
+function renderAssetSheet(){
   const isMain = S.settings.mainAssetId === editing.id;
   const body = `
     <div class="section" style="margin-top:12px"><div class="card">
@@ -185,13 +202,9 @@ function openAssetEditor(id, groupId){
 }
 
 function saveAsset(){
-  const q = s=>document.getElementById(s);
-  const name = q('e-name').value.trim();
-  if(!name){ alert('이름을 입력해 주세요.'); return; }
-  editing.name = name;
-  editing.groupId = q('e-group').value;
-  const raw = String(q('e-bal').value).replace(/[^0-9-]/g,'');
-  editing.initialBalance = Number(raw) || 0;
+  syncAssetDom();
+  editing.name = editing.name.trim();
+  if(!editing.name){ alert('이름을 입력해 주세요.'); return; }
   if(editing.id){
     const i = S.assets.findIndex(a=>a.id===editing.id);
     S.assets[i] = Object.assign(S.assets[i], editing);
@@ -206,6 +219,13 @@ function saveAsset(){
 function openGroupEditor(id){
   editing = id ? JSON.parse(JSON.stringify(groupById(id)))
                : { id:null, name:'', defaultBucket:'living' };
+  renderGroupSheet();
+}
+function syncGroupDom(){
+  const n = document.getElementById('g-name');
+  if(n) editing.name = n.value;
+}
+function renderGroupSheet(){
   const b = editing.defaultBucket;
   const body = `
     <div class="section" style="margin-top:12px"><div class="card">
@@ -228,9 +248,9 @@ function openGroupEditor(id){
 }
 
 function saveGroup(){
-  const name = document.getElementById('g-name').value.trim();
-  if(!name){ alert('이름을 입력해 주세요.'); return; }
-  editing.name = name;
+  syncGroupDom();
+  editing.name = editing.name.trim();
+  if(!editing.name){ alert('이름을 입력해 주세요.'); return; }
   if(editing.id){
     const i = S.groups.findIndex(g=>g.id===editing.id);
     S.groups[i] = Object.assign(S.groups[i], editing);
@@ -241,9 +261,19 @@ function saveGroup(){
 }
 
 /* ===================== 분류 편집 ===================== */
-function openCatEditor(id, type){
+function openCatEditor(id, type, fromTxn){
+  if(fromTxn !== undefined) returnToTxn = !!fromTxn;
   editing = id ? JSON.parse(JSON.stringify(catById(id)))
                : { id:null, name:'', type: type||'expense', bucket:'living', color:PALETTE[0], emoji:'🏷️' };
+  renderCatSheet();
+}
+function syncCatDom(){
+  const n = document.getElementById('c-name');
+  const e = document.getElementById('c-emoji');
+  if(n) editing.name = n.value;
+  if(e) editing.emoji = e.value;
+}
+function renderCatSheet(){
   const b = editing.bucket;
   const body = `
     <div class="section" style="margin-top:12px"><div class="card">
@@ -270,21 +300,32 @@ function openCatEditor(id, type){
     </div>` : ''}
     ${editing.id ? `<button class="btn-wide danger" data-act="deleteCat">분류 삭제</button>` : ''}
     <div style="height:12px"></div>`;
-  sheet(editing.id ? '분류 편집' : '분류 추가', body, null, `<button data-act="saveCat" style="font-weight:600">저장</button>`);
+  sheet(editing.id ? '분류 편집' : '분류 추가', body,
+        returnToTxn ? `<button data-act="backToTxn">‹ 뒤로</button>` : null,
+        `<button data-act="saveCat" style="font-weight:600">저장</button>`);
 }
 
 function saveCat(){
-  const name = document.getElementById('c-name').value.trim();
-  if(!name){ alert('이름을 입력해 주세요.'); return; }
-  editing.name = name;
-  editing.emoji = document.getElementById('c-emoji').value.trim();
+  syncCatDom();
+  editing.name = editing.name.trim();
+  editing.emoji = (editing.emoji||'').trim();
+  if(!editing.name){ alert('이름을 입력해 주세요.'); return; }
   if(editing.id){
     const i = S.categories.findIndex(c=>c.id===editing.id);
     S.categories[i] = Object.assign(S.categories[i], editing);
   }else{
     editing.id = uid(); S.categories.push(editing);
   }
-  save(); closeSheet(); render();
+  save();
+  if(returnToTxn && draft){          // 내역 시트에서 넘어온 경우: 새 항목을 고른 채 복귀
+    returnToTxn = false;
+    draft.categoryId = editing.id;
+    editing = null;
+    applyCatBucket();
+    renderTxnSheet();
+    return;
+  }
+  closeSheet(); render();
 }
 
 /* ===================== 메인자산 선택 ===================== */

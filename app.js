@@ -59,7 +59,13 @@ const ACTS = {
   txnBucket: (_,v)=>{ syncDraft(); draft.bucket=v; draft.excludeFromTotal=false; renderTxnSheet(); },
   toggleExclude: ()=>{ syncDraft(); draft.excludeFromTotal = !draft.excludeFromTotal; renderTxnSheet(); },
   pickCat: id=>{ syncDraft(); draft.categoryId=id; applyCatBucket(); renderTxnSheet(); },
-  catChange: ()=>{ syncDraft(); applyCatBucket(); renderTxnSheet(); },
+  catChange: ()=>{
+    const sel = document.getElementById('f-cat');
+    syncDraft();
+    if(sel && sel.value === '__new__'){ openCatEditor(null, draft.type, true); return; }
+    applyCatBucket(); renderTxnSheet();
+  },
+  backToTxn: ()=>{ returnToTxn = false; editing = null; renderTxnSheet(); },
   reRender: ()=>{ syncDraft(); applyGroupBucket(); renderTxnSheet(); },
   saveTxn,
   deleteTxn: ()=>{
@@ -75,11 +81,9 @@ const ACTS = {
   /* 자산/그룹/분류 편집 */
   newAsset: id=>openAssetEditor(null, id),
   editAsset: id=>openAssetEditor(id),
-  assetKind: (_,v)=>{ editing.kind=v; const n=document.getElementById('e-name').value, b=document.getElementById('e-bal').value;
-                      openAssetEditor(editing.id, editing.groupId);
-                      document.getElementById('e-name').value=n; document.getElementById('e-bal').value=b; },
+  assetKind: (_,v)=>{ syncAssetDom(); editing.kind=v; renderAssetSheet(); },
   saveAsset,
-  toggleMain: ()=>{ S.settings.mainAssetId = S.settings.mainAssetId === editing.id ? null : editing.id; save(); openAssetEditor(editing.id); },
+  toggleMain: ()=>{ syncAssetDom(); S.settings.mainAssetId = S.settings.mainAssetId === editing.id ? null : editing.id; save(); renderAssetSheet(); },
   deleteAsset: ()=>{
     const used = S.txns.filter(t=>t.assetId===editing.id || t.toAssetId===editing.id).length;
     if(!confirm(used ? `이 자산의 내역 ${used}건도 함께 삭제됩니다. 계속할까요?` : '이 자산을 삭제할까요?')) return;
@@ -98,9 +102,7 @@ const ACTS = {
   },
   newGroup: ()=>openGroupEditor(null),
   editGroup: id=>openGroupEditor(id),
-  groupBucket: (_,v)=>{ const n=document.getElementById('g-name').value; editing.defaultBucket=v;
-                        openGroupEditor(editing.id); document.getElementById('g-name').value=n;
-                        if(!editing.id) editing.defaultBucket=v; },
+  groupBucket: (_,v)=>{ syncGroupDom(); editing.defaultBucket=v; renderGroupSheet(); },
   saveGroup,
   deleteGroup: ()=>{
     if(assetsOfGroup(editing.id).length){ alert('그룹 안의 자산을 먼저 옮기거나 삭제해 주세요.'); return; }
@@ -116,16 +118,8 @@ const ACTS = {
   },
   newCat: (_,v)=>openCatEditor(null, v),
   editCat: id=>openCatEditor(id),
-  catBucket: (_,v)=>{ const n=document.getElementById('c-name').value, e=document.getElementById('c-emoji').value;
-                      editing.bucket=v; const keep=editing; openCatEditor(editing.id, editing.type);
-                      editing.bucket=v; editing.color=keep.color;
-                      document.getElementById('c-name').value=n; document.getElementById('c-emoji').value=e;
-                      renderCatColorState(); },
-  catColor: (_,v)=>{ const n=document.getElementById('c-name').value, e=document.getElementById('c-emoji').value;
-                     const b=editing.bucket; editing.color=v; openCatEditor(editing.id, editing.type);
-                     editing.color=v; editing.bucket=b;
-                     document.getElementById('c-name').value=n; document.getElementById('c-emoji').value=e;
-                     renderCatColorState(); },
+  catBucket: (_,v)=>{ syncCatDom(); editing.bucket=v; renderCatSheet(); },
+  catColor:  (_,v)=>{ syncCatDom(); editing.color=v;  renderCatSheet(); },
   saveCat,
   deleteCat: ()=>{
     const used = S.txns.filter(t=>t.categoryId===editing.id).length;
@@ -197,7 +191,7 @@ const ACTS = {
   previewAnalysis: ()=>openAnalysisSheet(analysisText(ui.statFm), false),
 
   /* 시트 */
-  closeSheet, backdrop: closeSheet
+  closeSheet
 };
 
 /* ---------------- 클립보드 ---------------- */
@@ -247,8 +241,6 @@ ACTS.copyFromSheet = ()=>{
     else { ta.focus(); ta.select(); toast('길게 눌러 복사해 주세요'); }
   });
 };
-
-function renderCatColorState(){}
 
 function applyCatBucket(){
   const c = catById(draft.categoryId);

@@ -179,21 +179,21 @@ function lastDayOf(y,m){ return new Date(y, m+1, 0).getDate(); }
 function daysBetween(a,b){ return Math.round((parseD(b)-parseD(a)) / 86400000); }
 
 /** 날짜가 속한 회계월 라벨 {y, m(0-based)}
- *  기간이 시작하는 달의 이름을 쓴다. 시작일 25일이면 6/25~7/24 = 6월. */
+ *  기간이 끝나는 달의 이름을 쓴다. 시작일 25일이면 6/25~7/24 = 7월. */
 function fiscalOf(dateStr){
   const sd = S.settings.monthStartDay;
   const d = parseD(dateStr);
   let y = d.getFullYear(), m = d.getMonth();
-  if(sd > 1 && d.getDate() < sd){ m--; if(m<0){ m=11; y--; } }
+  if(sd > 1 && d.getDate() >= sd){ m++; if(m>11){ m=0; y++; } }
   return { y, m };
 }
 /** 회계월 {y,m} 의 실제 날짜 범위 */
 function fiscalRange(y,m){
   const sd = S.settings.monthStartDay;
   if(sd <= 1) return { start:`${y}-${pad2(m+1)}-01`, end:`${y}-${pad2(m+1)}-${pad2(lastDayOf(y,m))}` };
-  const start = `${y}-${pad2(m+1)}-${pad2(Math.min(sd, lastDayOf(y,m)))}`;
-  let ny = y, nm = m+1; if(nm>11){ nm=0; ny++; }
-  const endD = addDays(parseD(`${ny}-${pad2(nm+1)}-${pad2(Math.min(sd, lastDayOf(ny,nm)))}`), -1);
+  let py = y, pm = m-1; if(pm<0){ pm=11; py--; }
+  const start = `${py}-${pad2(pm+1)}-${pad2(Math.min(sd, lastDayOf(py,pm)))}`;
+  const endD = addDays(parseD(`${y}-${pad2(m+1)}-${pad2(Math.min(sd, lastDayOf(y,m)))}`), -1);
   return { start, end: toStr(endD) };
 }
 function fiscalYearRange(y){ return { start: fiscalRange(y,0).start, end: fiscalRange(y,11).end }; }
