@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>가계부</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="가계부">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+  <div id="main"></div>
+</div>
+
+<button id="fab" aria-label="내역 추가">+</button>
+
+<nav id="tabbar">
+  <div class="tabbar-inner">
+    <button class="tab" data-tab="home"><span class="tab-ic">🏠</span><span class="tab-l">홈</span></button>
+    <button class="tab" data-tab="assets"><span class="tab-ic">💳</span><span class="tab-l">자산</span></button>
+    <button class="tab" data-tab="stats"><span class="tab-ic">📊</span><span class="tab-l">통계</span></button>
+    <button class="tab" data-tab="settings"><span class="tab-ic">⚙️</span><span class="tab-l">설정</span></button>
+  </div>
+</nav>
+
+<div id="modal-root"></div>
+
+<script src="core.js"></script>
+<script src="views.js"></script>
+<script src="settings.js"></script>
+<script src="modals.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
