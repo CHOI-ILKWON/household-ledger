@@ -67,7 +67,8 @@ const ACTS = {
   },
   backToTxn: ()=>{ returnToTxn = false; editing = null; renderTxnSheet(); },
   reRender: ()=>{ syncDraft(); applyGroupBucket(); renderTxnSheet(); },
-  saveTxn,
+  saveTxn: ()=>saveTxn(false),
+  saveContinue: ()=>saveTxn(true),
   deleteTxn: ()=>{
     if(!confirm('이 내역을 삭제할까요?')) return;
     S.txns = S.txns.filter(t=>t.id !== draft.id);

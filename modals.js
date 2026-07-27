@@ -74,10 +74,10 @@ function renderTxnSheet(){
   }
 
   const body = `
-    <div style="padding:12px 16px 4px"><div class="seg flush">
-      <button class="${draft.type==='expense'?'on':''}" data-act="txnType" data-v="expense">지출</button>
-      <button class="${draft.type==='income'?'on':''}" data-act="txnType" data-v="income">수입</button>
-      <button class="${draft.type==='transfer'?'on':''}" data-act="txnType" data-v="transfer">이체</button>
+    <div style="padding:12px 16px 4px"><div class="seg flush seg-type">
+      <button class="t-expense ${draft.type==='expense'?'on':''}" data-act="txnType" data-v="expense">지출</button>
+      <button class="t-income ${draft.type==='income'?'on':''}" data-act="txnType" data-v="income">수입</button>
+      <button class="t-transfer ${draft.type==='transfer'?'on':''}" data-act="txnType" data-v="transfer">이체</button>
     </div></div>
 
     <div class="section" style="margin-top:10px"><div class="card">
@@ -122,10 +122,13 @@ function renderTxnSheet(){
     <div style="height:12px"></div>`;
 
   sheet(draft.id ? '내역 수정' : '내역 추가', body, null,
+        (draft.id ? '' : `<button data-act="saveContinue" class="btn-continue">계속</button>`) +
         `<button data-act="saveTxn" style="font-weight:600">저장</button>`);
 }
 
-function saveTxn(){
+/** keepOpen 이면 저장 후 시트를 열어 둔 채 다음 입력을 받는다.
+ *  날짜·자산·항목·구분은 그대로 두고 금액과 내용만 비운다. */
+function saveTxn(keepOpen){
   syncDraft();
   if(!draft.amount){ alert('금액을 입력해 주세요.'); return; }
   if(draft.type === 'transfer'){
@@ -145,7 +148,24 @@ function saveTxn(){
     draft.id = uid(); draft.createdAt = Date.now();
     S.txns.push(draft);
   }
-  save(); closeSheet(); render();
+  save();
+
+  if(keepOpen){
+    draft = {
+      id:null, type:draft.type, date:draft.date, amount:0,
+      assetId:draft.assetId, toAssetId:draft.toAssetId,
+      categoryId:draft.categoryId, memo:'',
+      bucket:draft.bucket, excludeFromTotal:draft.excludeFromTotal
+    };
+    render();
+    renderTxnSheet();
+    const amt = document.getElementById('f-amt');
+    if(amt) amt.focus();
+    toast('저장했습니다. 이어서 입력하세요');
+    return;
+  }
+
+  closeSheet(); render();
 }
 
 /* ===================== 자산 편집 ===================== */
