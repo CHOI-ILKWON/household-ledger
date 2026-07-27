@@ -18,16 +18,18 @@ function uid(){ return Date.now().toString(36) + Math.random().toString(36).slic
 /* ---------------- 시드 데이터 ---------------- */
 function seed(){
   const mk = (name, defaultBucket) => ({ id:uid(), name, defaultBucket });
+  // 「생활비」 그룹 합계가 일일 용돈의 기준이 되므로, 부채는 별도 그룹으로 둔다
   const g1 = mk('생활비','living');
   const g2 = mk('별도 자산','fixed');
   const g3 = mk('대출 보험','fixed');
   const g4 = mk('대납 정산','passthrough');
+  const g5 = mk('마이너스','living');
 
   const A = (groupId,name,kind,bal) => ({ id:uid(), groupId, name, kind, initialBalance:bal, archived:false });
   const assets = [
     A(g1.id,'생활비 통장','asset',0),
-    A(g1.id,'마이너스 통장','liability',-5000000),
     A(g1.id,'월급 통장','asset',0),
+    A(g5.id,'마이너스 통장','liability',-5000000),
     A(g2.id,'공과금','asset',800000),
     A(g2.id,'경조사','asset',500000),
     A(g3.id,'대출 A','asset',600000),
@@ -60,7 +62,7 @@ function seed(){
   ];
 
   const st = {
-    groups:[g1,g2,g3,g4],
+    groups:[g1,g2,g3,g5,g4],
     assets,
     categories,
     txns:[],

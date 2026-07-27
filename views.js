@@ -48,10 +48,13 @@ function renderHome(){
     if(a.kind === 'receivable') recv += b; else net += b;
   }
 
+  // 일일 용돈은 메인자산이 속한 그룹 전체를 쓸 수 있는 돈으로 본다
   const ma = mainAsset();
-  const maBal = ma ? balanceOf(ma.id) : 0;
+  const mg = ma ? groupById(ma.groupId) : null;
+  const poolAssets = mg ? assetsOfGroup(mg.id) : (ma ? [ma] : []);
+  const pool = poolAssets.reduce((s,a)=>s + balanceOf(a.id), 0);
   const left = Math.max(1, daysBetween(today, r.end) + 1);
-  const perDay = Math.floor(maBal / left);
+  const perDay = Math.floor(pool / left);
 
   const spendPct = pct(sm.expense, sm.income);
   const livingW = sm.income > 0 ? Math.min(100, sm.living/sm.income*100) : 0;
@@ -112,7 +115,8 @@ function renderHome(){
       <div class="pocket">
         <div class="pocket-k">💰 하루에 쓸 수 있는 돈</div>
         <div class="pocket-v num ${perDay<0?'c-living':''}">${won(perDay)}</div>
-        <div class="pocket-sub">${ma?esc(ma.name):'메인자산 없음'} · ${fmt(maBal)}원 ÷ 남은 ${left}일 (${r.end.slice(5).replace('-','/')}까지)</div>
+        <div class="pocket-sub">${mg?esc(mg.name)+' 그룹':'메인자산 없음'} · ${fmt(pool)}원 ÷ 남은 ${left}일 (${r.end.slice(5).replace('-','/')}까지)</div>
+        ${poolAssets.length > 1 ? `<div class="pocket-sub">${poolAssets.map(a=>esc(a.name)).join(' + ')}</div>` : ''}
       </div>
     </div>
   </div>

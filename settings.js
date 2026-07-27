@@ -21,7 +21,9 @@ function renderSettings(){
       <div class="row tap" data-act="goCatSettings"><div class="row-main"><div class="row-title">분류 관리</div>
         <div class="row-sub">지출 · 수입 분류와 기본 구분</div></div><div class="chev">›</div></div>
       <div class="row tap" data-act="pickMain"><div class="row-main"><div class="row-title">⭐ 메인자산</div>
-        <div class="row-sub">일일 용돈 계산 기준</div></div>
+        <div class="row-sub">${ma && groupById(ma.groupId)
+            ? `일일 용돈은 <b>${esc(groupById(ma.groupId).name)}</b> 그룹 전체로 계산`
+            : '일일 용돈 계산 기준'}</div></div>
         <div class="row-val c-lbl2">${ma?esc(ma.name):'없음'}</div><div class="chev">›</div></div>
     </div>
   </div>

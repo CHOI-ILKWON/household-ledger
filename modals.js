@@ -209,7 +209,7 @@ function renderAssetSheet(){
     <div class="section"><div class="card">
       <div class="switchline" data-act="toggleMain">
         <div><div class="switchline-k">⭐ 메인자산으로 지정</div>
-          <div class="switchline-d">홈의 일일 용돈 계산 기준</div></div>
+          <div class="switchline-d">홈의 일일 용돈은 이 자산이 속한 <b>그룹 전체</b>로 계산됩니다</div></div>
         <div class="sw ${isMain?'on':''}"></div>
       </div>
     </div></div>
@@ -349,13 +349,18 @@ function saveCat(){
 /* ===================== 메인자산 선택 ===================== */
 function openMainPicker(){
   const body = `<div class="section" style="margin-top:12px"><div class="card">
-    ${liveAssets().map(a=>`<div class="row tap" data-act="setMain" data-id="${a.id}">
-      <div class="row-main"><div class="row-title">${esc(a.name)}</div>
-        <div class="row-sub">${fmt(balanceOf(a.id))}원</div></div>
-      ${S.settings.mainAssetId===a.id?'<div class="row-val c-income">✓</div>':''}
-    </div>`).join('')}
+    ${liveAssets().map(a=>{
+      const g = groupById(a.groupId);
+      const gsum = g ? assetsOfGroup(g.id).reduce((s,x)=>s+balanceOf(x.id),0) : balanceOf(a.id);
+      return `<div class="row tap" data-act="setMain" data-id="${a.id}">
+        <div class="row-main"><div class="row-title">${esc(a.name)}</div>
+          <div class="row-sub">${g?esc(g.name)+' 그룹 합계 ':''}${fmt(gsum)}원</div></div>
+        ${S.settings.mainAssetId===a.id?'<div class="row-val c-income">✓</div>':''}
+      </div>`;
+    }).join('')}
   </div></div>
-  <div class="hint">홈 화면의 “하루에 쓸 수 있는 돈”은 이 자산의 잔액을 회계월 잔여일수로 나눠 계산합니다.</div>
+  <div class="hint">홈의 “하루에 쓸 수 있는 돈”은 <b>선택한 자산이 속한 그룹 전체</b>의 잔액을 회계월 잔여일수로 나눠 계산합니다.
+  그룹 안에 부채가 섞여 있으면 금액이 확 줄 수 있으니, 생활비용 자산만 한 그룹으로 묶어 두는 편이 좋습니다.</div>
   <div style="height:20px"></div>`;
   sheet('메인자산 선택', body, `<button data-act="closeSheet">닫기</button>`);
 }
