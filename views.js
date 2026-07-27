@@ -59,11 +59,11 @@ function renderHome(){
 
   const cells = liveAssets().map(a=>{
     const b = balanceOf(a.id);
-    const cls = a.kind==='liability' ? 'c-living' : (a.kind==='receivable' ? 'c-muted' : (b<0?'c-living':''));
     return `<button class="gcell" data-act="openAsset" data-id="${a.id}">
       <div class="gcell-n">${esc(a.name)}</div>
-      <div class="gcell-v ${cls}">${compact(b)}</div>
-      ${a.kind==='receivable' && b<0 ? '<div class="gcell-badge">받을돈</div>' : ''}
+      <div class="gcell-v ${balanceClass(a,b)}">${balanceText(a,b,true)}</div>
+      ${a.kind==='liability' && b!==0 ? '<div class="gcell-badge" style="color:var(--living)">갚을돈</div>' : ''}
+      ${a.kind==='receivable' && b!==0 ? '<div class="gcell-badge">받을돈</div>' : ''}
     </button>`;
   }).join('');
 
@@ -71,7 +71,7 @@ function renderHome(){
   <div class="hero">
     <div class="hero-label">총 잔액</div>
     <div class="hero-amt num ${net<0?'c-living':''}">${won(net)}</div>
-    ${recv !== 0 ? `<div class="hero-sub">정산받을 돈 ${won(-recv)}</div>` : ''}
+    ${recv !== 0 ? `<div class="hero-sub">정산받을 돈 ${won(Math.abs(recv))}</div>` : ''}
   </div>
 
   <div class="section">
@@ -148,19 +148,18 @@ function renderAssets(){
     const open = !ui.collapsed[g.id];
     body += `<div class="ghead" data-act="toggleGroup" data-id="${g.id}">
         <div class="ghead-n">${open?'▾':'▸'} ${esc(g.name)}</div>
-        <div class="ghead-v num">${won(gsum)}</div>
+        <div class="ghead-v num ${gsum<0?'c-living':''}">${won(gsum)}</div>
       </div>`;
     if(!open) continue;
     body += '<div class="card">' + list.map(a=>{
       const b = balanceOf(a.id);
-      const cls = a.kind==='liability' ? 'c-living' : (a.kind==='receivable' ? 'c-muted' : (b<0?'c-living':'c-income'));
       const isMain = S.settings.mainAssetId === a.id;
       return `<div class="row tap" data-act="openAsset" data-id="${a.id}">
         <div class="row-main">
           <div class="row-title">${isMain?'⭐ ':''}${esc(a.name)}</div>
-          ${a.kind!=='asset' ? `<div class="row-sub">${a.kind==='liability'?'부채':'미수금 · 정산예정'}</div>`:''}
+          ${a.kind!=='asset' ? `<div class="row-sub">${a.kind==='liability'?'부채 · 갚을 돈':'미수금 · 받을 돈'}</div>`:''}
         </div>
-        <div><div class="row-val ${cls} num">${won(b)}</div></div>
+        <div><div class="row-val ${balanceClass(a,b)} num">${balanceText(a,b)}</div></div>
         <div class="chev">›</div>
       </div>`;
     }).join('') + '</div>';
@@ -176,7 +175,7 @@ function renderAssets(){
       </div>
       ${recv!==0 ? `<div class="split"><div class="split-row">
         <div class="split-k">정산받을 돈 (합계 미포함)</div>
-        <div class="split-v c-muted num">${won(-recv)}</div>
+        <div class="split-v c-muted num">${won(Math.abs(recv))}</div>
       </div></div>` : ''}
     </div>
   </div>

@@ -159,6 +159,21 @@ function load(){
   if(!S.settings) S.settings = {};
   if(!S.settings.monthStartDay) S.settings.monthStartDay = 25;
   if(!S.settings.mainAssetId && S.assets[0]) S.settings.mainAssetId = S.assets[0].id;
+
+  // 부채는 음수로 저장한다. 예전 입력칸이 "시작잔액" 이라고만 되어 있어
+  // 갚을 금액을 양수로 넣은 데이터가 있다. 한 번만 부호를 바로잡는다.
+  if(!S.settings.liabilitySignFixed){
+    let fixed = 0;
+    for(const a of S.assets){
+      if(a.kind === 'liability' && (a.initialBalance || 0) > 0){
+        a.initialBalance = -a.initialBalance;
+        fixed++;
+      }
+    }
+    S.settings.liabilitySignFixed = true;
+    if(fixed || !fresh) save();
+  }
+
   if(fresh) save();
   applyTheme();
 }
@@ -402,3 +417,20 @@ function analysisText(fm){
 }
 function fixedColorVar(){ return S.settings.fixedColor === 'red' ? 'var(--living)' : 'var(--fixed)'; }
 function fixedClass(){ return S.settings.fixedColor === 'red' ? 'c-living' : 'c-fixed'; }
+
+/* ---------------- 자산 종류별 표시 ----------------
+   내부 저장은 항상 부호가 있는 값이다.
+     자산   잔액 그대로 (음수면 마이너스)
+     부채   음수로 저장 (-2천만 = 2천만을 갚아야 함)
+     미수금 음수로 저장 (-80만 = 80만을 받아야 함)
+   화면에는 부채·미수금을 절대값 + 색으로 보여준다.
+   부채를 "-20,615,693원" 처럼 빨간 마이너스로 두면 이중 부정이라 읽기 나쁘다. */
+function balanceText(a, b, compactMode){
+  const v = (a.kind === 'liability' || a.kind === 'receivable') ? Math.abs(b) : b;
+  return compactMode ? compact(v) : won(v);
+}
+function balanceClass(a, b){
+  if(a.kind === 'liability')  return b === 0 ? '' : 'c-living';
+  if(a.kind === 'receivable') return 'c-muted';
+  return b < 0 ? 'c-living' : (b > 0 ? 'c-income' : '');
+}

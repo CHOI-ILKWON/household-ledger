@@ -152,6 +152,7 @@ function saveTxn(){
 function openAssetEditor(id, groupId){
   editing = id ? JSON.parse(JSON.stringify(assetById(id)))
                : { id:null, groupId, name:'', kind:'asset', initialBalance:0, archived:false };
+  editing._neg = (editing.initialBalance || 0) < 0;   // 자산의 부호 (저장 전 제거)
   renderAssetSheet();
 }
 /** 다시 그리기 전에 화면의 입력값을 editing 에 담아 둔다.
@@ -162,7 +163,14 @@ function syncAssetDom(){
   const b = document.getElementById('e-bal');
   if(n) editing.name = n.value;
   if(g) editing.groupId = g.value;
-  if(b) editing.initialBalance = Number(String(b.value).replace(/[^0-9-]/g,'')) || 0;
+  if(b){
+    // 입력칸에는 항상 절대값만 들어간다. iOS 숫자 키패드에는 - 키가 없어서
+    // 부호는 종류(부채·미수금) 또는 +/− 버튼으로 정한다.
+    let v = Math.abs(Number(String(b.value).replace(/[^0-9]/g,'')) || 0);
+    if(editing.kind === 'liability' || editing.kind === 'receivable') v = -v;
+    else if(editing._neg) v = -v;
+    editing.initialBalance = v;
+  }
 }
 function renderAssetSheet(){
   const isMain = S.settings.mainAssetId === editing.id;
@@ -172,9 +180,18 @@ function renderAssetSheet(){
         <input type="text" id="e-name" value="${esc(editing.name)}" placeholder="예) 생활비 통장"></div>
       <div class="field"><div class="field-k">그룹</div>
         <select id="e-group">${S.groups.map(g=>`<option value="${g.id}" ${g.id===editing.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>
-      <div class="field"><div class="field-k">시작잔액</div>
-        <input type="text" inputmode="numeric" id="e-bal" value="${editing.initialBalance?fmt(editing.initialBalance):''}" placeholder="0"></div>
+      <div class="field"><div class="field-k">${editing.kind==='liability'?'갚을 돈':editing.kind==='receivable'?'받을 돈':'시작잔액'}</div>
+        ${editing.kind==='asset'
+          ? `<button class="signbtn ${editing._neg?'neg':''}" data-act="signToggle">${editing._neg?'−':'+'}</button>`
+          : `<span class="signfix">−</span>`}
+        <input type="text" inputmode="numeric" id="e-bal" placeholder="0" data-act="amtInput"
+               value="${editing.initialBalance ? fmt(Math.abs(editing.initialBalance)) : ''}"></div>
     </div></div>
+    <div class="hint">${
+      editing.kind==='liability' ? '<b>갚아야 할 금액</b>을 그냥 양수로 넣으세요. 2천만원을 썼으면 <b>20000000</b>. 마이너스는 앱이 알아서 붙이고, 총 합계에서 빠집니다.'
+    : editing.kind==='receivable' ? '<b>받아야 할 금액</b>을 그냥 양수로 넣으세요. 마이너스는 앱이 알아서 붙입니다. 자산·부채 합계에는 들어가지 않습니다.'
+    : '지금 들어 있는 금액. 마이너스로 넣으려면 왼쪽 <b>＋</b> 를 눌러 <b>−</b> 로 바꾸세요.'
+    }</div>
     <div class="section">
       <div class="section-title">종류</div>
       <div class="card"><div style="padding:12px 16px"><div class="seg flush">
@@ -205,6 +222,7 @@ function saveAsset(){
   syncAssetDom();
   editing.name = editing.name.trim();
   if(!editing.name){ alert('이름을 입력해 주세요.'); return; }
+  delete editing._neg;              // 화면용 임시 값은 저장하지 않는다
   if(editing.id){
     const i = S.assets.findIndex(a=>a.id===editing.id);
     S.assets[i] = Object.assign(S.assets[i], editing);

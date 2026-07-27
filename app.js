@@ -81,7 +81,13 @@ const ACTS = {
   /* 자산/그룹/분류 편집 */
   newAsset: id=>openAssetEditor(null, id),
   editAsset: id=>openAssetEditor(id),
-  assetKind: (_,v)=>{ syncAssetDom(); editing.kind=v; renderAssetSheet(); },
+  assetKind: (_,v)=>{ syncAssetDom(); editing.kind=v;
+                      if(v !== 'asset') editing.initialBalance = -Math.abs(editing.initialBalance);
+                      editing._neg = editing.initialBalance < 0;
+                      renderAssetSheet(); },
+  signToggle: ()=>{ syncAssetDom(); editing._neg = !editing._neg;
+                    editing.initialBalance = (editing._neg?-1:1) * Math.abs(editing.initialBalance);
+                    renderAssetSheet(); },
   saveAsset,
   toggleMain: ()=>{ syncAssetDom(); S.settings.mainAssetId = S.settings.mainAssetId === editing.id ? null : editing.id; save(); renderAssetSheet(); },
   deleteAsset: ()=>{
