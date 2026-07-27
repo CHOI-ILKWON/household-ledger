@@ -6,8 +6,12 @@
 
 const KEY = 'ledger.v1';
 const WD = ['일','월','화','수','목','금','토'];
-const BUCKET_NAME = { living:'생활지출', fixed:'고정지출', passthrough:'대납' };
-const BUCKET_CLASS = { living:'c-living', fixed:'c-fixed', passthrough:'c-muted' };
+const BUCKET_NAME  = { living:'생활지출', fixed:'고정지출', event:'이벤트지출', passthrough:'대납' };
+const BUCKET_CLASS = { living:'c-living', fixed:'c-fixed', event:'c-event', passthrough:'c-muted' };
+const BUCKET_VAR   = { living:'var(--living)', fixed:'var(--fixed)', event:'var(--event)', passthrough:'var(--muted)' };
+/** 고정지출 색상은 설정으로 바꿀 수 있어 별도 처리 */
+function bucketClass(b){ return b === 'fixed' ? fixedClass() : (BUCKET_CLASS[b] || ''); }
+function bucketVar(b){ return b === 'fixed' ? fixedColorVar() : (BUCKET_VAR[b] || 'var(--muted)'); }
 const PALETTE = ['#FF3B30','#FF9F0A','#FFD60A','#30D158','#64D2FF','#0A84FF',
                  '#5E5CE6','#BF5AF2','#FF375F','#AC8E68','#8E8E93','#A2845E'];
 
@@ -45,11 +49,11 @@ function seed(){
     C('출근커피','expense','living','#5E5CE6','☕'),
     C('교통','expense','living','#FFD60A','🚇'),
     C('미용','expense','living','#30D158','✂️'),
-    C('이벤트','expense','living','#FF9F0A','🎁'),
+    C('이벤트','expense','event','#BF5AF2','🎁'),
     C('쇼핑','expense','living','#FF375F','🛍️'),
     C('구독','expense','living','#0A84FF','🤖'),
     C('의료','expense','living','#BF5AF2','💊'),
-    C('경조사','expense','living','#AC8E68','💐'),
+    C('경조사','expense','event','#AC8E68','💐'),
     C('주거/통신','expense','fixed','#FF9F0A','🏠'),
     C('관리비','expense','fixed','#FFD60A','🏢'),
     C('대출상환','expense','fixed','#A2845E','🏦'),
@@ -92,13 +96,15 @@ function sampleTxns(){
   const pd = f => toStr(addDays(parseD(prevR.start), Math.round(f*span)));
 
   const yong=A('생활비 통장'), wol=A('월급 통장'), gong=A('공과금'),
-        d128=A('대출 A'), d25=A('대출 B'), bo=A('보험'), chul=A('출장비 대납');
+        d128=A('대출 A'), d25=A('대출 B'), bo=A('보험'), chul=A('출장비 대납'),
+        mtong=A('마이너스 통장');
   let seq = 0;
   const T = (type,date,amount,assetId,categoryId,memo,extra) =>
     Object.assign({ id:uid(), type, date, amount, assetId, toAssetId:null,
       categoryId, memo, bucket:'living', excludeFromTotal:false,
       createdAt: Date.now() + (seq++) }, extra||{});
   const F = { bucket:'fixed' };
+  const E = { bucket:'event' };
   const P = { bucket:'passthrough', excludeFromTotal:true };
 
   /* 매달 반복되는 급여 · 이체 · 고정지출 */
@@ -127,7 +133,7 @@ function sampleTxns(){
     T('expense', pd(.35),   7000, yong, C('식비'),   '점심'),
     T('expense', pd(.40),   3500, yong, C('식비'),   '아침'),
     T('expense', pd(.46),   5500, yong, C('식비'),   '아침'),
-    T('expense', pd(.50), 150000, yong, C('이벤트'), '기념일 선물'),
+    T('expense', pd(.50), 150000, mtong, C('이벤트'), '기념일 선물', E),
     T('expense', pd(.55),  28000, yong, C('출근커피'), '출근 커피'),
     T('expense', pd(.60),  38000, yong, C('카페'),   '카페'),
     T('expense', pd(.66),  85000, yong, C('교통'),   '교통비'),
@@ -147,6 +153,8 @@ function sampleTxns(){
     T('expense', cd(.70),  35000, yong, C('구독'), '구독 서비스'),
     T('expense', cd(.85),  58000, yong, C('쇼핑'),   '의류'),
     T('expense', cd(.95),  11000, yong, C('식비'),   '점심'),
+    T('expense', cd(.60), 250000, mtong, C('경조사'), '결혼식 축의금', E),
+    T('expense', cd(.80), 120000, mtong, C('이벤트'), '부모님 선물', E),
     T('expense', cd(.50), 180000, chul, C('출장비'), '출장 유류·통행료', P),
   ];
 }
@@ -290,7 +298,7 @@ function inRange(dateStr, r){ return dateStr >= r.start && dateStr <= r.end; }
 
 /** 전체 기간 요약 (홈/통계) */
 function summary(r, assetId){
-  let income = 0, living = 0, fixed = 0, pending = 0, transfer = 0;
+  let income = 0, living = 0, fixed = 0, event = 0, pending = 0, transfer = 0;
   for(const t of S.txns){
     if(!inRange(t.date, r)) continue;
     if(assetId && t.assetId !== assetId && t.toAssetId !== assetId) continue;
@@ -298,10 +306,20 @@ function summary(r, assetId){
     if(t.excludeFromTotal){ if(t.type==='expense') pending += t.amount; continue; }
     if(t.type === 'income'){ income += t.amount; continue; }
     if(t.bucket === 'fixed') fixed += t.amount;
+    else if(t.bucket === 'event') event += t.amount;
     else if(t.bucket === 'passthrough') pending += t.amount;
     else living += t.amount;
   }
-  return { income, living, fixed, pending, transfer, expense: living + fixed };
+  return { income, living, fixed, event, pending, transfer, expense: living + fixed + event };
+}
+
+/** 특정 구분에 속한 지출 내역 (홈에서 눌렀을 때 보여줄 목록) */
+function txnsOfBucket(r, bucket){
+  return S.txns.filter(t=>{
+    if(t.type !== 'expense' || !inRange(t.date, r)) return false;
+    if(bucket === 'passthrough') return t.excludeFromTotal || t.bucket === 'passthrough';
+    return !t.excludeFromTotal && t.bucket === bucket;
+  }).sort(cmpDesc);
 }
 
 /* ---------------- 포맷 ---------------- */
@@ -363,11 +381,12 @@ function analysisText(fm){
 
   L.push('■ 요약');
   L.push(`  수입             ${fmt(sm.income)}원`);
-  L.push(`  고정지출         ${fmt(sm.fixed)}원`);
-  L.push(`  생활지출         ${fmt(sm.living)}원`);
+  L.push(`  고정지출         ${fmt(sm.fixed)}원   ※ 대출·보험 등. 이번 달에 바꿀 수 없음`);
+  L.push(`  생활지출         ${fmt(sm.living)}원   ※ 식비·교통 등 일상 소비`);
+  L.push(`  이벤트지출       ${fmt(sm.event)}원   ※ 경조사·선물 등 일회성 지출`);
   if(sm.pending) L.push(`  대납(정산예정)   ${fmt(sm.pending)}원   ※ 내 지출 아님. 나중에 돌려받는 돈`);
   L.push(`  쓸 수 있었던 돈  ${fmt(sm.income - sm.fixed)}원   (수입 − 고정지출)`);
-  L.push(`  남은 여유        ${fmt(sm.income - sm.fixed - sm.living)}원`);
+  L.push(`  남은 여유        ${fmt(sm.income - sm.fixed - sm.living - sm.event)}원`);
 
   const today = todayStr();
   const endD  = today < r.end ? today : r.end;
@@ -386,6 +405,13 @@ function analysisText(fm){
     L.push(`  ${pad(catName(k),10)} ${pad(fmt(cur.map[k].amt)+'원', 12)} ${pad(pct(cur.map[k].amt, cur.total)+'%', 5)} (지난달 ${fmt(p)}원)`);
   }
   L.push(`  ${pad('합계',10)} ${fmt(cur.total)}원`);
+  L.push('');
+
+  const ev = catAgg(r, 'event');
+  L.push('■ 이벤트지출 분류별 (일회성)');
+  if(!ev.keys.length) L.push('  (없음)');
+  for(const k of ev.keys) L.push(`  ${pad(catName(k),10)} ${fmt(ev.map[k].amt)}원`);
+  if(ev.keys.length) L.push(`  ${pad('합계',10)} ${fmt(ev.total)}원`);
   L.push('');
 
   const fx = catAgg(r, 'fixed');

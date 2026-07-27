@@ -55,6 +55,8 @@ const ACTS = {
   /* 내역 */
   newTxn: (_,v)=>openTxn(null, v || 'expense'),
   editTxn: id=>openTxn(id),
+  bucketList: (_,v)=>openBucketList(v),
+  editTxnFromList: id=>openTxn(id),
   txnType: (_,v)=>{ syncDraft(); draft.type=v; autoCat(); if(v!=='expense'){ draft.excludeFromTotal=false; } renderTxnSheet(); },
   txnBucket: (_,v)=>{ syncDraft(); draft.bucket=v; draft.excludeFromTotal=false; renderTxnSheet(); },
   toggleExclude: ()=>{ syncDraft(); draft.excludeFromTotal = !draft.excludeFromTotal; renderTxnSheet(); },

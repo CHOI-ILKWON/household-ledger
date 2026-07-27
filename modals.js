@@ -106,9 +106,10 @@ function renderTxnSheet(){
     <div class="section">
       <div class="section-title">구분</div>
       <div class="card">
-        <div style="padding:12px 16px"><div class="seg flush">
-          <button class="${draft.bucket==='living'?'on':''}" data-act="txnBucket" data-v="living">생활지출</button>
-          <button class="${draft.bucket==='fixed'?'on':''}" data-act="txnBucket" data-v="fixed">고정지출</button>
+        <div style="padding:12px 16px"><div class="seg flush seg-bucket">
+          <button class="b-living ${draft.bucket==='living'?'on':''}" data-act="txnBucket" data-v="living">생활</button>
+          <button class="b-fixed ${draft.bucket==='fixed'?'on':''}" data-act="txnBucket" data-v="fixed">고정</button>
+          <button class="b-event ${draft.bucket==='event'?'on':''}" data-act="txnBucket" data-v="event">이벤트</button>
         </div></div>
         <div class="switchline" data-act="toggleExclude">
           <div><div class="switchline-k">지출에 미표기</div>
@@ -272,10 +273,11 @@ function renderGroupSheet(){
     </div></div>
     <div class="section">
       <div class="section-title">기본 구분</div>
-      <div class="card"><div style="padding:12px 16px"><div class="seg flush">
-        <button class="${b==='living'?'on':''}" data-act="groupBucket" data-v="living">생활지출</button>
-        <button class="${b==='fixed'?'on':''}" data-act="groupBucket" data-v="fixed">고정지출</button>
-        <button class="${b==='passthrough'?'on':''}" data-act="groupBucket" data-v="passthrough">대납</button>
+      <div class="card"><div style="padding:12px 16px"><div class="seg flush seg-bucket">
+        <button class="b-living ${b==='living'?'on':''}" data-act="groupBucket" data-v="living">생활</button>
+        <button class="b-fixed ${b==='fixed'?'on':''}" data-act="groupBucket" data-v="fixed">고정</button>
+        <button class="b-event ${b==='event'?'on':''}" data-act="groupBucket" data-v="event">이벤트</button>
+        <button class="b-pass ${b==='passthrough'?'on':''}" data-act="groupBucket" data-v="passthrough">대납</button>
       </div></div>
       <div class="hint" style="padding:0 16px 14px">이 그룹의 자산에서 지출하면 자동으로 이 구분이 선택됩니다.</div>
       </div>
@@ -330,10 +332,11 @@ function renderCatSheet(){
     ${editing.type==='expense' ? `
     <div class="section">
       <div class="section-title">기본 구분</div>
-      <div class="card"><div style="padding:12px 16px"><div class="seg flush">
-        <button class="${b==='living'?'on':''}" data-act="catBucket" data-v="living">생활지출</button>
-        <button class="${b==='fixed'?'on':''}" data-act="catBucket" data-v="fixed">고정지출</button>
-        <button class="${b==='passthrough'?'on':''}" data-act="catBucket" data-v="passthrough">대납</button>
+      <div class="card"><div style="padding:12px 16px"><div class="seg flush seg-bucket">
+        <button class="b-living ${b==='living'?'on':''}" data-act="catBucket" data-v="living">생활</button>
+        <button class="b-fixed ${b==='fixed'?'on':''}" data-act="catBucket" data-v="fixed">고정</button>
+        <button class="b-event ${b==='event'?'on':''}" data-act="catBucket" data-v="event">이벤트</button>
+        <button class="b-pass ${b==='passthrough'?'on':''}" data-act="catBucket" data-v="passthrough">대납</button>
       </div></div></div>
     </div>` : ''}
     ${editing.id ? `<button class="btn-wide danger" data-act="deleteCat">분류 삭제</button>` : ''}
@@ -364,6 +367,47 @@ function saveCat(){
     return;
   }
   closeSheet(); render();
+}
+
+/* ===================== 구분별 지출 목록 ===================== */
+function openBucketList(bucket){
+  const fm = fiscalOf(todayStr());
+  const r  = fiscalRange(fm.y, fm.m);
+  const list = txnsOfBucket(r, bucket);
+  const total = list.reduce((s,t)=>s+t.amount, 0);
+  const cls = bucketClass(bucket);
+
+  // 분류별로 묶어 큰 것부터
+  const byCat = {};
+  for(const t of list){ (byCat[t.categoryId] = byCat[t.categoryId] || []).push(t); }
+  const catKeys = Object.keys(byCat).sort((a,b)=>
+    byCat[b].reduce((s,t)=>s+t.amount,0) - byCat[a].reduce((s,t)=>s+t.amount,0));
+
+  const body = `
+    <div class="pad" style="padding-bottom:6px">
+      <div class="pocket-k">${fmLabel(fm)} · ${rangeLabel(r)}</div>
+      <div class="pocket-v num ${cls}">${won(total)}</div>
+      <div class="pocket-sub">${list.length}건${bucket==='passthrough'?' · 지출 합계에 포함되지 않습니다':''}</div>
+    </div>
+    ${list.length ? catKeys.map(k=>{
+      const items = byCat[k];
+      const sum = items.reduce((s,t)=>s+t.amount, 0);
+      const c = catById(k);
+      return `<div class="section" style="margin-top:12px">
+        <div class="section-title">${c?esc(c.emoji||'')+' '+esc(c.name):'미분류'} · ${won(sum)}</div>
+        <div class="card">${items.map(t=>`
+          <div class="row tap" data-act="editTxnFromList" data-id="${t.id}">
+            <div class="row-main">
+              <div class="row-title">${esc(t.memo || catName(t.categoryId))}</div>
+              <div class="row-sub">${t.date} · ${esc(assetName(t.assetId))}</div>
+            </div>
+            <div class="row-val ${cls} num">${won(t.amount)}</div>
+          </div>`).join('')}</div>
+      </div>`;
+    }).join('') : `<div class="empty">이 달에 ${BUCKET_NAME[bucket]} 내역이 없습니다.</div>`}
+    <div style="height:20px"></div>`;
+
+  sheet(`${BUCKET_NAME[bucket]} 내역`, body, `<button data-act="closeSheet">닫기</button>`);
 }
 
 /* ===================== 메인자산 선택 ===================== */

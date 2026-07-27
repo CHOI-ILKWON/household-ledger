@@ -13,6 +13,7 @@
   --income:#0A84FF;
   --living:#FF3B30;
   --fixed:#FF9F0A;
+  --event:#BF5AF2;
   --transfer:#3C3C43;
   --muted:#8E8E93;
   --accent:#FF3B30;
@@ -155,6 +156,7 @@ input,select{background:none;border:0;outline:none;}
 .c-income{color:var(--income);}
 .c-living{color:var(--living);}
 .c-fixed{color:var(--fixed);}
+.c-event{color:var(--event);}
 .c-transfer{color:var(--transfer);}
 .c-muted{color:var(--muted);}
 .c-lbl2{color:var(--label-2);}
@@ -174,6 +176,9 @@ input,select{background:none;border:0;outline:none;}
 
 .split{padding:12px 16px 14px;border-top:.5px solid var(--sep);}
 .split-row{display:flex;align-items:baseline;justify-content:space-between;padding:3px 0;}
+.split-row.tap-row{padding:7px 0;margin:0 -6px;padding-left:6px;padding-right:6px;border-radius:8px;}
+.split-row.tap-row:active{background:var(--fill);}
+.chev.sm{font-size:14px;margin-left:5px;color:var(--label-3);}
 .split-k{font-size:13px;color:var(--label-2);display:flex;align-items:center;gap:6px;}
 .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
 .split-v{font-size:15px;font-weight:600;}
@@ -346,6 +351,13 @@ html[data-theme="dark"] .seg button.on,
 .seg-type{padding:3px;}
 .seg-type button{font-size:15px;font-weight:600;padding:9px 4px;color:var(--label);}
 .seg-type button.on{box-shadow:none;}
+/* 구분(생활/고정/이벤트)도 선택된 것만 색으로 채운다 */
+.seg-bucket button.on{box-shadow:none;color:#fff;}
+.seg-bucket button.b-living.on{background:var(--living);}
+.seg-bucket button.b-fixed.on{background:var(--fixed);}
+.seg-bucket button.b-event.on{background:var(--event);}
+.seg-bucket button.b-pass.on{background:var(--muted);}
+
 .seg-type button.t-expense.on{background:var(--living);color:#fff;}
 .seg-type button.t-income.on{background:var(--income);color:#fff;}
 .seg-type button.t-transfer.on{background:var(--transfer);color:var(--bg);}

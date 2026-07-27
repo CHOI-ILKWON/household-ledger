@@ -59,6 +59,7 @@ function renderHome(){
   const spendPct = pct(sm.expense, sm.income);
   const livingW = sm.income > 0 ? Math.min(100, sm.living/sm.income*100) : 0;
   const fixedW  = sm.income > 0 ? Math.min(100-livingW, sm.fixed/sm.income*100) : 0;
+  const eventW  = sm.income > 0 ? Math.min(100-livingW-fixedW, sm.event/sm.income*100) : 0;
 
   const cells = liveAssets().map(a=>{
     const b = balanceOf(a.id);
@@ -86,21 +87,26 @@ function renderHome(){
         <div><div class="trio-k">잔액</div><div class="trio-v num ${sm.income-sm.expense<0?'c-living':''}">${fmt(sm.income-sm.expense)}</div></div>
       </div>
       <div class="split">
-        <div class="split-row">
+        <div class="split-row tap-row" data-act="bucketList" data-v="living">
           <div class="split-k"><span class="dot" style="background:var(--living)"></span>생활지출</div>
-          <div class="split-v lead c-living num">${won(sm.living)}</div>
+          <div class="split-v lead c-living num">${won(sm.living)}<span class="chev sm">›</span></div>
         </div>
-        <div class="split-row">
+        <div class="split-row tap-row" data-act="bucketList" data-v="fixed">
           <div class="split-k"><span class="dot" style="background:${fixedColorVar()}"></span>고정지출 <span class="c-lbl3">자동</span></div>
-          <div class="split-v ${fixedClass()} num">${won(sm.fixed)}</div>
+          <div class="split-v ${fixedClass()} num">${won(sm.fixed)}<span class="chev sm">›</span></div>
         </div>
-        ${sm.pending ? `<div class="split-row">
+        <div class="split-row tap-row" data-act="bucketList" data-v="event">
+          <div class="split-k"><span class="dot" style="background:var(--event)"></span>이벤트지출</div>
+          <div class="split-v c-event num">${won(sm.event)}<span class="chev sm">›</span></div>
+        </div>
+        ${sm.pending ? `<div class="split-row tap-row" data-act="bucketList" data-v="passthrough">
           <div class="split-k"><span class="dot" style="background:var(--muted)"></span>대납 · 정산예정</div>
-          <div class="split-v c-muted num">${won(sm.pending)}</div>
+          <div class="split-v c-muted num">${won(sm.pending)}<span class="chev sm">›</span></div>
         </div>` : ''}
         <div class="ratio-track">
           <div class="ratio-seg" style="width:${livingW}%;background:var(--living)"></div>
           <div class="ratio-seg" style="width:${fixedW}%;background:${fixedColorVar()}"></div>
+          <div class="ratio-seg" style="width:${eventW}%;background:var(--event)"></div>
         </div>
         <div class="split-row" style="padding-top:7px">
           <div class="split-k">수입 대비 지출</div>
@@ -424,8 +430,8 @@ function renderStats(){
   const smPrev = summary(fiscalRange(prev.y, prev.m));
 
   const b = ui.statBucket;
-  const cur  = b === 'living' ? sm.living : b === 'fixed' ? sm.fixed : sm.expense;
-  const before = b === 'living' ? smPrev.living : b === 'fixed' ? smPrev.fixed : smPrev.expense;
+  const pick = (s) => b === 'all' ? s.expense : (s[b] || 0);
+  const cur = pick(sm), before = pick(smPrev);
   const diff = before > 0 ? Math.round((cur-before)/before*100) : null;
 
   // 분류별
@@ -433,7 +439,7 @@ function renderStats(){
   for(const t of S.txns){
     if(t.type !== 'expense' || t.excludeFromTotal) continue;
     if(!inRange(t.date, r)) continue;
-    if(b !== 'all' && t.bucket !== b) continue;
+    if(b !== 'all' && (t.bucket || 'living') !== b) continue;
     if(b === 'all' && t.bucket === 'passthrough') continue;
     (map[t.categoryId] = map[t.categoryId] || { amt:0, items:[] });
     map[t.categoryId].amt += t.amount; map[t.categoryId].items.push(t);
@@ -463,16 +469,17 @@ function renderStats(){
   const free = sm.income - sm.fixed;
 
   return navbar('통계') + monthNav(ui.statFm,'prevStatMonth','nextStatMonth') + `
-  <div class="seg">
-    <button class="${b==='living'?'on':''}" data-act="statBucket" data-v="living">생활</button>
-    <button class="${b==='fixed'?'on':''}" data-act="statBucket" data-v="fixed">고정</button>
+  <div class="seg seg-bucket">
+    <button class="b-living ${b==='living'?'on':''}" data-act="statBucket" data-v="living">생활</button>
+    <button class="b-fixed ${b==='fixed'?'on':''}" data-act="statBucket" data-v="fixed">고정</button>
+    <button class="b-event ${b==='event'?'on':''}" data-act="statBucket" data-v="event">이벤트</button>
     <button class="${b==='all'?'on':''}" data-act="statBucket" data-v="all">전체</button>
   </div>
 
   <div class="section">
     <div class="card"><div class="pad">
-      <div class="pocket-k">${fmLabel(ui.statFm)} ${b==='living'?'생활지출':b==='fixed'?'고정지출':'전체 지출'}</div>
-      <div class="pocket-v num ${b==='fixed'?fixedClass():'c-living'}">${won(cur)}</div>
+      <div class="pocket-k">${fmLabel(ui.statFm)} ${b==='all'?'전체 지출':BUCKET_NAME[b]}</div>
+      <div class="pocket-v num ${b==='all'?'c-living':bucketClass(b)}">${won(cur)}</div>
       <div class="pocket-sub">${diff===null?'전월 데이터 없음':`전월 대비 ${diff>0?'▲':diff<0?'▼':'-'} ${Math.abs(diff)}% (${fmt(before)}원)`}</div>
     </div></div>
   </div>
@@ -483,9 +490,10 @@ function renderStats(){
       <div class="row"><div class="row-main"><div class="row-title">이번 달 수입</div></div><div class="row-val c-income num">${won(sm.income)}</div></div>
       <div class="row"><div class="row-main"><div class="row-title">− 고정지출 <span class="c-lbl3">이미 결정된 돈</span></div></div><div class="row-val ${fixedClass()} num">${won(sm.fixed)}</div></div>
       <div class="row"><div class="row-main"><div class="row-title">쓸 수 있었던 돈</div></div><div class="row-val num">${won(free)}</div></div>
-      <div class="row"><div class="row-main"><div class="row-title">− 실제 쓴 돈</div></div><div class="row-val c-living num">${won(sm.living)}</div></div>
+      <div class="row"><div class="row-main"><div class="row-title">− 생활지출</div></div><div class="row-val c-living num">${won(sm.living)}</div></div>
+      <div class="row"><div class="row-main"><div class="row-title">− 이벤트지출</div></div><div class="row-val c-event num">${won(sm.event)}</div></div>
       <div class="row" style="background:var(--fill)"><div class="row-main"><div class="row-title" style="font-weight:600">남은 여유</div></div>
-        <div class="row-val num" style="font-weight:700;${free-sm.living<0?'color:var(--living)':''}">${won(free - sm.living)}</div></div>
+        <div class="row-val num" style="font-weight:700;${free-sm.living-sm.event<0?'color:var(--living)':''}">${won(free - sm.living - sm.event)}</div></div>
     </div>
     <div class="hint">고정지출은 이번 달에 바꿀 수 없는 돈입니다. 먼저 빼고 남은 것만으로 평가하면 실제 소비 습관이 보입니다.</div>
   </div>
