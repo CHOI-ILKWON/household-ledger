@@ -341,11 +341,11 @@ html[data-theme="dark"] .seg button.on,
 .sw.on{background:#30D158;}
 .sw.on::after{transform:translateX(20px);}
 .hint{padding:8px 16px 0;font-size:11px;color:var(--label-3);line-height:1.5;}
-/* 지출 / 수입 / 이체 — 어떤 모드인지 색으로 바로 보이게 */
-.seg-type button{font-size:14px;font-weight:600;}
-.seg-type button.t-expense{color:var(--living);}
-.seg-type button.t-income{color:var(--income);}
-.seg-type button.t-transfer{color:var(--transfer);}
+/* 지출 / 수입 / 이체 — 지금 쓰고 있는 것만 색으로 채우고 나머지는 무채색.
+   셋 다 색을 주면 오히려 어느 게 선택됐는지 구분이 안 된다. */
+.seg-type{padding:3px;}
+.seg-type button{font-size:15px;font-weight:600;padding:9px 4px;color:var(--label);}
+.seg-type button.on{box-shadow:none;}
 .seg-type button.t-expense.on{background:var(--living);color:#fff;}
 .seg-type button.t-income.on{background:var(--income);color:#fff;}
 .seg-type button.t-transfer.on{background:var(--transfer);color:var(--bg);}
