@@ -54,7 +54,18 @@ function renderHome(){
   const poolAssets = mg ? assetsOfGroup(mg.id) : (ma ? [ma] : []);
   const pool = poolAssets.reduce((s,a)=>s + balanceOf(a.id), 0);
   const left = Math.max(1, daysBetween(today, r.end) + 1);
-  const perDay = Math.floor(pool / left);
+
+  // 오늘 그룹에서 나간 지출
+  const poolIds = new Set(poolAssets.map(a => a.id));
+  let spentToday = 0;
+  for(const t of S.txns){
+    if(t.date !== today || t.type !== 'expense' || t.excludeFromTotal) continue;
+    if(poolIds.has(t.assetId)) spentToday += t.amount;
+  }
+  // 오늘 쓴 돈을 되더해서 나눈다. 그래야 오늘 쓸수록 목표가 같이 줄어드는
+  // (= 아무리 써도 나빠 보이지 않는) 문제가 생기지 않는다.
+  const perDay = Math.floor((pool + spentToday) / left);
+  const leftToday = perDay - spentToday;
 
   const spendPct = pct(sm.expense, sm.income);
   const livingW = sm.income > 0 ? Math.min(100, sm.living/sm.income*100) : 0;
@@ -119,9 +130,10 @@ function renderHome(){
   <div class="section">
     <div class="card">
       <div class="pocket">
-        <div class="pocket-k">💰 하루에 쓸 수 있는 돈</div>
-        <div class="pocket-v num ${perDay<0?'c-living':''}">${won(perDay)}</div>
-        <div class="pocket-sub">${mg?esc(mg.name)+' 그룹':'메인자산 없음'} · ${fmt(pool)}원 ÷ 남은 ${left}일 (${r.end.slice(5).replace('-','/')}까지)</div>
+        <div class="pocket-k">💰 오늘 남은 돈</div>
+        <div class="pocket-v num ${leftToday<0?'c-living':''}">${won(leftToday)}<span class="pocket-of">/ ${won(perDay)}</span></div>
+        <div class="pocket-sub">${spentToday ? `오늘 ${fmt(spentToday)}원 썼어요` : '오늘 아직 안 썼어요'}</div>
+        <div class="pocket-sub">${mg?esc(mg.name)+' 그룹':'메인자산 없음'} · ${fmt(pool+spentToday)}원 ÷ 남은 ${left}일 (${r.end.slice(5).replace('-','/')}까지)</div>
         ${poolAssets.length > 1 ? `<div class="pocket-sub">${poolAssets.map(a=>esc(a.name)).join(' + ')}</div>` : ''}
       </div>
     </div>
