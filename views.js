@@ -127,6 +127,8 @@ function renderHome(){
     </div>
   </div>
 
+  ${compareCard(fm, r, today)}
+
   <div class="section">
     <div class="section-title">자산</div>
     <div class="card"><div class="grid5">${cells}</div></div>
@@ -138,6 +140,44 @@ function renderHome(){
     </div>
   </div>
   <div style="height:20px"></div>`;
+}
+
+/** 저번 달 같은 일차와 '남은 여유'를 비교한다.
+ *  이번 달은 진행 중이라 완결된 저번 달과 그냥 견주면 항상 이번 달이 이긴다.
+ *  그래서 저번 달도 같은 일차까지만 잘라서 본다. */
+function compareCard(fm, r, today){
+  const dayIdx = Math.max(0, daysBetween(r.start, today));
+  const dayNo  = dayIdx + 1;
+  const pv = shiftMonth(fm, -1);
+
+  if(!monthHasTxn(pv)){
+    return `<div class="section">
+      <div class="card"><div class="pocket">
+        <div class="pocket-k">📊 저번 달과 비교</div>
+        <div class="pocket-sub" style="margin-top:6px;line-height:1.6">
+          저번 달 기록이 없어 아직 비교할 수 없어요.<br>
+          다음 달부터 <b>같은 일차끼리</b> 남은 여유를 견줘 드릴게요.
+        </div>
+      </div></div>
+    </div>`;
+  }
+
+  const cur  = slackUpTo(fm, dayIdx);
+  const prev = slackUpTo(pv, dayIdx);
+  const diff = cur.slack - prev.slack;
+  const cls  = diff > 0 ? 'c-income' : diff < 0 ? 'c-living' : '';
+  const word = diff > 0 ? '더 남았어요' : diff < 0 ? '덜 남았어요' : '저번 달과 같아요';
+
+  return `<div class="section">
+    <div class="card"><div class="pocket">
+      <div class="pocket-k">📊 저번 달 이맘때보다</div>
+      <div class="pocket-v num ${cls}">${diff === 0 ? '' : won(Math.abs(diff))}<span class="pocket-suffix">${word}</span></div>
+      <div class="cmp">
+        <div class="cmp-row"><span>이번 달 ${dayNo}일차</span><span class="num">${won(cur.slack)}</span></div>
+        <div class="cmp-row c-lbl2"><span>저번 달 ${dayNo}일차</span><span class="num">${won(prev.slack)}</span></div>
+      </div>
+    </div></div>
+  </div>`;
 }
 
 /* ===================== 자산 집계표 ===================== */

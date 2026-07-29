@@ -313,6 +313,20 @@ function summary(r, assetId){
   return { income, living, fixed, event, pending, transfer, expense: living + fixed + event };
 }
 
+/** 회계월 시작 후 dayIdx일까지만 잘라서 본 '남은 여유'.
+ *  이번 달은 아직 진행 중이라, 저번 달도 같은 일차까지만 잘라야 공평하게 비교된다. */
+function slackUpTo(fm, dayIdx){
+  const r = fiscalRange(fm.y, fm.m);
+  let cut = toStr(addDays(parseD(r.start), dayIdx));
+  if(cut > r.end) cut = r.end;
+  const sm = summary({ start: r.start, end: cut });
+  return { slack: sm.income - sm.fixed - sm.living - sm.event, cut, sm };
+}
+function monthHasTxn(fm){
+  const r = fiscalRange(fm.y, fm.m);
+  return S.txns.some(t => inRange(t.date, r));
+}
+
 /** 특정 구분에 속한 지출 내역 (홈에서 눌렀을 때 보여줄 목록) */
 function txnsOfBucket(r, bucket){
   return S.txns.filter(t=>{
