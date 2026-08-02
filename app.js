@@ -4,7 +4,12 @@
    부트스트랩 / 라우팅 / 이벤트
    ========================================================= */
 
-function render(){
+/** 다시 그린다.
+ *  기본은 보던 위치를 유지한다. 분류를 펼치는 것처럼 제자리에서 바뀌는 동작에서
+ *  맨 위로 튀면 방금 누른 항목을 다시 찾아 내려가야 한다.
+ *  탭이나 화면을 옮길 때만 render(false) 로 맨 위에서 시작한다. */
+function render(keepScroll){
+  const y = window.scrollY;
   const main = document.getElementById('main');
   let html;
   if(ui.tab === 'home') html = renderHome();
@@ -17,12 +22,12 @@ function render(){
   const tabKey = ui.tab === 'assetDetail' ? 'assets' : ui.tab;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on', b.dataset.tab === tabKey));
   document.getElementById('fab').style.display = ui.tab === 'settings' ? 'none' : 'flex';
-  window.scrollTo(0, 0);
+  window.scrollTo(0, keepScroll === false ? 0 : y);
 }
 
 function go(tab){
   ui.tab = tab; ui.sub = null; ui.openCat = null;
-  render();
+  render(false);
 }
 
 /* ---------------- 액션 ---------------- */
@@ -32,30 +37,31 @@ const ACTS = {
   goAssets: ()=>go('assets'),
   goStats: ()=>go('stats'),
   goSettings: ()=>{ ui.sub = null; go('settings'); },
-  goAssetSettings: ()=>{ ui.tab='settings'; ui.sub='settings-assets'; render(); },
-  goCatSettings: ()=>{ ui.tab='settings'; ui.sub='settings-cats'; render(); },
-  openAsset: id=>{ ui.tab='assetDetail'; ui.assetId=id; ui.openCat=null; ui.fm=fiscalOf(todayStr()); render(); },
+  goAssetSettings: ()=>{ ui.tab='settings'; ui.sub='settings-assets'; render(false); },
+  goCatSettings: ()=>{ ui.tab='settings'; ui.sub='settings-cats'; render(false); },
+  openAsset: id=>{ ui.tab='assetDetail'; ui.assetId=id; ui.openCat=null; ui.fm=fiscalOf(todayStr()); render(false); },
   toggleGroup: id=>{ ui.collapsed[id] = !ui.collapsed[id]; render(); },
   toggleCat: id=>{ ui.openCat = ui.openCat === id ? null : id; render(); },
 
   /* 자산 상세 */
-  detailTab: (_,v)=>{ ui.detailTab=v; ui.openCat=null; render(); },
-  prevMonth: ()=>{ ui.fm = shiftMonth(ui.fm,-1); ui.openCat=null; render(); },
-  nextMonth: ()=>{ ui.fm = shiftMonth(ui.fm, 1); ui.openCat=null; render(); },
-  prevYear: ()=>{ ui.fy--; render(); },
-  nextYear: ()=>{ ui.fy++; render(); },
-  pickMonth: (_,v)=>{ ui.fm = { y: ui.fy, m: Number(v) }; ui.detailTab='day'; render(); },
-  pickYear: (_,v)=>{ ui.fy = Number(v); ui.detailTab='month'; render(); },
+  detailTab: (_,v)=>{ ui.detailTab=v; ui.openCat=null; render(false); },
+  prevMonth: ()=>{ ui.fm = shiftMonth(ui.fm,-1); ui.openCat=null; render(false); },
+  nextMonth: ()=>{ ui.fm = shiftMonth(ui.fm, 1); ui.openCat=null; render(false); },
+  prevYear: ()=>{ ui.fy--; render(false); },
+  nextYear: ()=>{ ui.fy++; render(false); },
+  pickMonth: (_,v)=>{ ui.fm = { y: ui.fy, m: Number(v) }; ui.detailTab='day'; render(false); },
+  pickYear: (_,v)=>{ ui.fy = Number(v); ui.detailTab='month'; render(false); },
 
   /* 통계 */
-  statBucket: (_,v)=>{ ui.statBucket=v; ui.openCat=null; render(); },
-  prevStatMonth: ()=>{ ui.statFm = shiftMonth(ui.statFm,-1); ui.openCat=null; render(); },
-  nextStatMonth: ()=>{ ui.statFm = shiftMonth(ui.statFm, 1); ui.openCat=null; render(); },
+  statBucket: (_,v)=>{ ui.statBucket=v; ui.openCat=null; render(false); },
+  prevStatMonth: ()=>{ ui.statFm = shiftMonth(ui.statFm,-1); ui.openCat=null; render(false); },
+  nextStatMonth: ()=>{ ui.statFm = shiftMonth(ui.statFm, 1); ui.openCat=null; render(false); },
 
   /* 내역 */
   newTxn: (_,v)=>openTxn(null, v || 'expense'),
   editTxn: id=>openTxn(id),
-  bucketList: (_,v)=>openBucketList(v),
+  // 통계에서는 보고 있는 달, 홈에서는 이번 달 기준
+  bucketList: (_,v)=>openBucketList(v, ui.tab === 'stats' ? ui.statFm : fiscalOf(todayStr())),
   editTxnFromList: id=>openTxn(id),
   txnType: (_,v)=>{ syncDraft(); draft.type=v; autoCat(); if(v!=='expense'){ draft.excludeFromTotal=false; } renderTxnSheet(); },
   txnBucket: (_,v)=>{ syncDraft(); draft.bucket=v; draft.excludeFromTotal=false; renderTxnSheet(); },

@@ -370,18 +370,17 @@ function saveCat(){
 }
 
 /* ===================== 구분별 지출 목록 ===================== */
-function openBucketList(bucket){
-  const fm = fiscalOf(todayStr());
+function openBucketList(bucket, fm){
+  fm = fm || fiscalOf(todayStr());
   const r  = fiscalRange(fm.y, fm.m);
   const list = txnsOfBucket(r, bucket);
   const total = list.reduce((s,t)=>s+t.amount, 0);
   const cls = bucketClass(bucket);
 
-  // 분류별로 묶어 큰 것부터
-  const byCat = {};
-  for(const t of list){ (byCat[t.categoryId] = byCat[t.categoryId] || []).push(t); }
-  const catKeys = Object.keys(byCat).sort((a,b)=>
-    byCat[b].reduce((s,t)=>s+t.amount,0) - byCat[a].reduce((s,t)=>s+t.amount,0));
+  // 날짜별로 묶어 최근 날부터
+  const byDay = {};
+  for(const t of list){ (byDay[t.date] = byDay[t.date] || []).push(t); }
+  const days = Object.keys(byDay).sort().reverse();
 
   const body = `
     <div class="pad" style="padding-bottom:6px">
@@ -389,21 +388,26 @@ function openBucketList(bucket){
       <div class="pocket-v num ${cls}">${won(total)}</div>
       <div class="pocket-sub">${list.length}건${bucket==='passthrough'?' · 지출 합계에 포함되지 않습니다':''}</div>
     </div>
-    ${list.length ? catKeys.map(k=>{
-      const items = byCat[k];
+    ${list.length ? days.map(date=>{
+      const items = byDay[date];
       const sum = items.reduce((s,t)=>s+t.amount, 0);
-      const c = catById(k);
-      return `<div class="section" style="margin-top:12px">
-        <div class="section-title">${c?esc(c.emoji||'')+' '+esc(c.name):'미분류'} · ${won(sum)}</div>
-        <div class="card">${items.map(t=>`
-          <div class="row tap" data-act="editTxnFromList" data-id="${t.id}">
+      const d = parseD(date);
+      return `<div class="dayhead">
+          <div class="dayhead-d">${d.getMonth()+1}. ${d.getDate()}</div>
+          <div class="dayhead-w">${WD[d.getDay()]}요일</div>
+          <div class="dayhead-sp"></div>
+          <div class="dayhead-v ${cls} num">${won(sum)}</div>
+        </div>
+        <div class="card flush">${items.map(t=>{
+          const c = catById(t.categoryId);
+          return `<div class="row tap" data-act="editTxnFromList" data-id="${t.id}">
             <div class="row-main">
-              <div class="row-title">${esc(t.memo || catName(t.categoryId))}</div>
-              <div class="row-sub">${t.date} · ${esc(assetName(t.assetId))}</div>
+              <div class="row-title">${c?esc(c.emoji||'')+' ':''}${esc(t.memo || catName(t.categoryId))}</div>
+              <div class="row-sub">${esc(catName(t.categoryId))} · ${esc(assetName(t.assetId))}</div>
             </div>
             <div class="row-val ${cls} num">${won(t.amount)}</div>
-          </div>`).join('')}</div>
-      </div>`;
+          </div>`;
+        }).join('')}</div>`;
     }).join('') : `<div class="empty">이 달에 ${BUCKET_NAME[bucket]} 내역이 없습니다.</div>`}
     <div style="height:20px"></div>`;
 

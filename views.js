@@ -540,10 +540,10 @@ function renderStats(){
     <div class="section-title">진짜 여윳돈</div>
     <div class="card">
       <div class="row"><div class="row-main"><div class="row-title">이번 달 수입</div></div><div class="row-val c-income num">${won(sm.income)}</div></div>
-      <div class="row"><div class="row-main"><div class="row-title">− 고정지출 <span class="c-lbl3">이미 결정된 돈</span></div></div><div class="row-val ${fixedClass()} num">${won(sm.fixed)}</div></div>
+      <div class="row tap" data-act="bucketList" data-v="fixed"><div class="row-main"><div class="row-title">− 고정지출 <span class="c-lbl3">이미 결정된 돈</span></div></div><div class="row-val ${fixedClass()} num">${won(sm.fixed)}</div><div class="chev">›</div></div>
       <div class="row"><div class="row-main"><div class="row-title">쓸 수 있었던 돈</div></div><div class="row-val num">${won(free)}</div></div>
-      <div class="row"><div class="row-main"><div class="row-title">− 생활지출</div></div><div class="row-val c-living num">${won(sm.living)}</div></div>
-      <div class="row"><div class="row-main"><div class="row-title">− 이벤트지출</div></div><div class="row-val c-event num">${won(sm.event)}</div></div>
+      <div class="row tap" data-act="bucketList" data-v="living"><div class="row-main"><div class="row-title">− 생활지출</div></div><div class="row-val c-living num">${won(sm.living)}</div><div class="chev">›</div></div>
+      <div class="row tap" data-act="bucketList" data-v="event"><div class="row-main"><div class="row-title">− 이벤트지출</div></div><div class="row-val c-event num">${won(sm.event)}</div><div class="chev">›</div></div>
       <div class="row" style="background:var(--fill)"><div class="row-main"><div class="row-title" style="font-weight:600">남은 여유</div></div>
         <div class="row-val num" style="font-weight:700;${free-sm.living-sm.event<0?'color:var(--living)':''}">${won(free - sm.living - sm.event)}</div></div>
     </div>
