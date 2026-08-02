@@ -14,6 +14,16 @@ function renderSettings(){
 
   return navbar('설정') + `
   <div class="section" style="margin-top:12px">
+    <div class="card">
+      <a class="row tap" href="guide.html" style="color:inherit;text-decoration:none">
+        <div class="row-main"><div class="row-title">📖 사용설명서</div>
+          <div class="row-sub">처음이라면 먼저 읽어보세요</div></div>
+        <div class="chev">›</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">관리</div>
     <div class="card">
       <div class="row tap" data-act="goAssetSettings"><div class="row-main"><div class="row-title">자산 관리</div>
