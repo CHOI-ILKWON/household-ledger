@@ -78,7 +78,7 @@ function renderHome(){
       <div class="gcell-n">${esc(a.name)}</div>
       <div class="gcell-v ${balanceClass(a,b)}">${balanceText(a,b,true)}</div>
       ${a.kind==='liability' && b!==0 ? '<div class="gcell-badge" style="color:var(--living)">갚을돈</div>' : ''}
-      ${a.kind==='receivable' && b!==0 ? '<div class="gcell-badge">받을돈</div>' : ''}
+      ${a.kind==='receivable' && b!==0 ? `<div class="gcell-badge">${b<0?'받을돈':'미리받음'}</div>` : ''}
     </button>`;
   }).join('');
 
@@ -86,7 +86,7 @@ function renderHome(){
   <div class="hero">
     <div class="hero-label">총 잔액</div>
     <div class="hero-amt num ${net<0?'c-living':''}">${won(net)}</div>
-    ${recv !== 0 ? `<div class="hero-sub">정산받을 돈 ${won(Math.abs(recv))}</div>` : ''}
+    ${recv !== 0 ? `<div class="hero-sub">${recv < 0 ? '정산받을 돈' : '미리 받은 돈'} ${won(Math.abs(recv))} · 총 잔액에 미포함</div>` : ''}
   </div>
 
   <div class="section">
@@ -219,7 +219,10 @@ function renderAssets(){
       return `<div class="row tap" data-act="openAsset" data-id="${a.id}">
         <div class="row-main">
           <div class="row-title">${isMain?'⭐ ':''}${esc(a.name)}</div>
-          ${a.kind!=='asset' ? `<div class="row-sub">${a.kind==='liability'?'부채 · 갚을 돈':'미수금 · 받을 돈'}</div>`:''}
+          ${a.kind!=='asset' ? `<div class="row-sub">${
+              a.kind==='liability' ? '부채 · 갚을 돈'
+              : '대납 · 합계 미포함 · ' + (b < 0 ? '받을 돈' : b > 0 ? '미리 받음' : '정산 완료')
+            }</div>`:''}
         </div>
         <div><div class="row-val ${balanceClass(a,b)} num">${balanceText(a,b)}</div></div>
         <div class="chev">›</div>
@@ -236,7 +239,7 @@ function renderAssets(){
         <div><div class="trio-k">합계</div><div class="trio-v num ${asset+liab<0?'c-living':''}">${fmt(asset+liab)}</div></div>
       </div>
       ${recv!==0 ? `<div class="split"><div class="split-row">
-        <div class="split-k">정산받을 돈 (합계 미포함)</div>
+        <div class="split-k">${recv < 0 ? '정산받을 돈' : '미리 받은 돈'} <span class="c-lbl3">합계 미포함</span></div>
         <div class="split-v c-muted num">${won(Math.abs(recv))}</div>
       </div></div>` : ''}
     </div>

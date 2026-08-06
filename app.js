@@ -91,7 +91,7 @@ const ACTS = {
   newAsset: id=>openAssetEditor(null, id),
   editAsset: id=>openAssetEditor(id),
   assetKind: (_,v)=>{ syncAssetDom(); editing.kind=v;
-                      if(v !== 'asset') editing.initialBalance = -Math.abs(editing.initialBalance);
+                      if(v === 'liability') editing.initialBalance = -Math.abs(editing.initialBalance);
                       editing._neg = editing.initialBalance < 0;
                       renderAssetSheet(); },
   signToggle: ()=>{ syncAssetDom(); editing._neg = !editing._neg;

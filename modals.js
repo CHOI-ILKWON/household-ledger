@@ -188,7 +188,9 @@ function syncAssetDom(){
     // 입력칸에는 항상 절대값만 들어간다. iOS 숫자 키패드에는 - 키가 없어서
     // 부호는 종류(부채·미수금) 또는 +/− 버튼으로 정한다.
     let v = Math.abs(Number(String(b.value).replace(/[^0-9]/g,'')) || 0);
-    if(editing.kind === 'liability' || editing.kind === 'receivable') v = -v;
+    // 부채는 언제나 갚을 돈이라 음수. 미수금은 받을 돈(−)일 수도,
+    // 미리 받은 돈(+)일 수도 있어 자산처럼 부호 버튼으로 정한다.
+    if(editing.kind === 'liability') v = -v;
     else if(editing._neg) v = -v;
     editing.initialBalance = v;
   }
@@ -201,16 +203,16 @@ function renderAssetSheet(){
         <input type="text" id="e-name" value="${esc(editing.name)}" placeholder="예) 생활비 통장"></div>
       <div class="field"><div class="field-k">그룹</div>
         <select id="e-group">${S.groups.map(g=>`<option value="${g.id}" ${g.id===editing.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>
-      <div class="field"><div class="field-k">${editing.kind==='liability'?'갚을 돈':editing.kind==='receivable'?'받을 돈':'시작잔액'}</div>
-        ${editing.kind==='asset'
-          ? `<button class="signbtn ${editing._neg?'neg':''}" data-act="signToggle">${editing._neg?'−':'+'}</button>`
-          : `<span class="signfix">−</span>`}
+      <div class="field"><div class="field-k">${editing.kind==='liability'?'갚을 돈':'시작잔액'}</div>
+        ${editing.kind==='liability'
+          ? `<span class="signfix">−</span>`
+          : `<button class="signbtn ${editing._neg?'neg':''}" data-act="signToggle">${editing._neg?'−':'+'}</button>`}
         <input type="text" inputmode="numeric" id="e-bal" placeholder="0" data-act="amtInput"
                value="${editing.initialBalance ? fmt(Math.abs(editing.initialBalance)) : ''}"></div>
     </div></div>
     <div class="hint">${
       editing.kind==='liability' ? '<b>갚아야 할 금액</b>을 그냥 양수로 넣으세요. 2천만원을 썼으면 <b>20000000</b>. 마이너스는 앱이 알아서 붙이고, 총 합계에서 빠집니다.'
-    : editing.kind==='receivable' ? '<b>받아야 할 금액</b>을 그냥 양수로 넣으세요. 마이너스는 앱이 알아서 붙입니다. 자산·부채 합계에는 들어가지 않습니다.'
+    : editing.kind==='receivable' ? '출장비처럼 <b>내 돈이 아닌 계정</b>입니다. 여기 잔액은 <b>자산·부채 합계에 들어가지 않습니다.</b><br>내가 먼저 낸 상태면 왼쪽 <b>＋</b> 를 눌러 <b>−</b> 로 (받을 돈), 미리 받아둔 상태면 <b>＋</b> 로 두세요.'
     : '지금 들어 있는 금액. 마이너스로 넣으려면 왼쪽 <b>＋</b> 를 눌러 <b>−</b> 로 바꾸세요.'
     }</div>
     <div class="section">
@@ -222,8 +224,8 @@ function renderAssetSheet(){
       </div></div>
       <div class="hint" style="padding:0 16px 14px">
         ${editing.kind==='liability'?'마이너스 통장처럼 갚아야 할 돈. 집계표의 <b>부채</b>로 잡힙니다.'
-         :editing.kind==='receivable'?'출장비처럼 돌려받을 돈. 자산·부채 합계에서 <b>빠집니다</b>.'
-         :'일반 현금·계좌.'}
+         :editing.kind==='receivable'?'출장비 대납처럼 <b>내 돈이 아닌</b> 계정. 총 잔액과 자산·부채 합계 <b>어디에도 잡히지 않습니다</b>.'
+         :'일반 현금·계좌. 총 잔액에 그대로 더해집니다.'}
       </div></div>
     </div>
     ${editing.id ? `
