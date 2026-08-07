@@ -78,7 +78,7 @@ function renderHome(){
       <div class="gcell-n">${esc(a.name)}</div>
       <div class="gcell-v ${balanceClass(a,b)}">${balanceText(a,b,true)}</div>
       ${a.kind==='liability' && b!==0 ? '<div class="gcell-badge" style="color:var(--living)">갚을돈</div>' : ''}
-      ${a.kind==='receivable' && b!==0 ? `<div class="gcell-badge">${b<0?'받을돈':'미리받음'}</div>` : ''}
+      ${a.kind==='receivable' && b!==0 ? '<div class="gcell-badge">대납</div>' : ''}
     </button>`;
   }).join('');
 
@@ -220,8 +220,7 @@ function renderAssets(){
         <div class="row-main">
           <div class="row-title">${isMain?'⭐ ':''}${esc(a.name)}</div>
           ${a.kind!=='asset' ? `<div class="row-sub">${
-              a.kind==='liability' ? '부채 · 갚을 돈'
-              : '대납 · 합계 미포함 · ' + (b < 0 ? '받을 돈' : b > 0 ? '미리 받음' : '정산 완료')
+              a.kind==='liability' ? '부채 · 갚을 돈' : '대납 · 합계 미포함'
             }</div>`:''}
         </div>
         <div><div class="row-val ${balanceClass(a,b)} num">${balanceText(a,b)}</div></div>

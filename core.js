@@ -468,7 +468,9 @@ function fixedClass(){ return S.settings.fixedColor === 'red' ? 'c-living' : 'c-
    화면에는 부채·미수금을 절대값 + 색으로 보여준다.
    부채를 "-20,615,693원" 처럼 빨간 마이너스로 두면 이중 부정이라 읽기 나쁘다. */
 function balanceText(a, b, compactMode){
-  const v = (a.kind === 'liability' || a.kind === 'receivable') ? Math.abs(b) : b;
+  // 부채만 절대값 + 빨강으로 보여준다 ("-2천만" 을 빨갛게 쓰면 이중 부정이라 읽기 나쁨).
+  // 미수금(대납)은 부호 그대로 — 대신 낸 1,000원이 -1,000원으로 보여야 직관적이다.
+  const v = a.kind === 'liability' ? Math.abs(b) : b;
   return compactMode ? compact(v) : won(v);
 }
 function balanceClass(a, b){
