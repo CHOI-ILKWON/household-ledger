@@ -377,7 +377,8 @@ function openBucketList(bucket, fm){
   const r  = fiscalRange(fm.y, fm.m);
   const list = txnsOfBucket(r, bucket);
   const total = list.reduce((s,t)=>s+t.amount, 0);
-  const cls = bucketClass(bucket);
+  const cls = listClass(bucket);
+  const name = listTitle(bucket);
 
   // 날짜별로 묶어 최근 날부터
   const byDay = {};
@@ -410,10 +411,10 @@ function openBucketList(bucket, fm){
             <div class="row-val ${cls} num">${won(t.amount)}</div>
           </div>`;
         }).join('')}</div>`;
-    }).join('') : `<div class="empty">이 달에 ${BUCKET_NAME[bucket]} 내역이 없습니다.</div>`}
+    }).join('') : `<div class="empty">이 달에 ${esc(name)} 내역이 없습니다.</div>`}
     <div style="height:20px"></div>`;
 
-  sheet(`${BUCKET_NAME[bucket]} 내역`, body, `<button data-act="closeSheet">닫기</button>`);
+  sheet(`${name} 내역`, body, `<button data-act="closeSheet">닫기</button>`);
 }
 
 /* ===================== 메인자산 선택 ===================== */

@@ -327,14 +327,19 @@ function monthHasTxn(fm){
   return S.txns.some(t => inRange(t.date, r));
 }
 
-/** 특정 구분에 속한 지출 내역 (홈에서 눌렀을 때 보여줄 목록) */
+/** 특정 구분의 내역 (홈·통계에서 눌렀을 때 보여줄 목록).
+ *  bucket 에 'income' 을 주면 수입 내역을 돌려준다. */
 function txnsOfBucket(r, bucket){
   return S.txns.filter(t=>{
-    if(t.type !== 'expense' || !inRange(t.date, r)) return false;
+    if(!inRange(t.date, r)) return false;
+    if(bucket === 'income') return t.type === 'income' && !t.excludeFromTotal;
+    if(t.type !== 'expense') return false;
     if(bucket === 'passthrough') return t.excludeFromTotal || t.bucket === 'passthrough';
     return !t.excludeFromTotal && t.bucket === bucket;
   }).sort(cmpDesc);
 }
+function listTitle(bucket){ return bucket === 'income' ? '수입' : BUCKET_NAME[bucket]; }
+function listClass(bucket){ return bucket === 'income' ? 'c-income' : bucketClass(bucket); }
 
 /* ---------------- 포맷 ---------------- */
 function fmt(n){
