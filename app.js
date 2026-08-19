@@ -207,6 +207,10 @@ const ACTS = {
 
   /* 알림 캡처 읽기 */
   ocrPick,
+  bulkToggle: (_,v)=>{ syncBulkDom(); const i=Number(v); bulk.items[i].on = !bulk.items[i].on; renderBulkSheet(); },
+  bulkBucket: (_,v)=>{ syncBulkDom(); bulk.bucket = v; renderBulkSheet(); },
+  bulkField: ()=>syncBulkDom(),
+  bulkSave,
 
   /* 시트 */
   closeSheet
@@ -259,6 +263,10 @@ function ocrPick(){
       const w = await getOcrWorker();
       ocrSay('글자 읽는 중…');
       const { data } = await w.recognize(url);
+      // 거래 목록 캡처면 여러 건이 나온다. 두 건 이상이면 목록으로 담는다.
+      const many = parseNotificationList(data.text);
+      if(many.length >= 2){ openBulkSheet(many); toast(many.length + '건 읽었어요'); return; }
+
       const got = parseNotification(data.text);
       if(got.amount == null && !got.memo){
         ocrSay('금액을 찾지 못했어요. 알림 부분만 잘라서 다시 시도해 보세요.');

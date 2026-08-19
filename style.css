@@ -408,3 +408,11 @@ html[data-theme="dark"] .seg button.on,
 .swatch{width:22px;height:22px;border-radius:11px;flex:0 0 auto;}
 .reorder{display:flex;gap:6px;}
 .reorder button{width:30px;height:30px;border-radius:8px;background:var(--fill);font-size:13px;color:var(--label-2);}
+
+/* ===== 여러 건 담기 체크 ===== */
+.bulkchk{
+  width:24px;height:24px;border-radius:12px;flex:0 0 auto;
+  border:1.5px solid var(--sep-strong);color:#fff;font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+}
+.bulkchk.on{background:var(--income);border-color:var(--income);}

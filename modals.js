@@ -8,8 +8,9 @@ const MR = () => document.getElementById('modal-root');
 let draft = null;        // 내역 편집 중 데이터
 let editing = null;      // 자산/그룹/분류 편집 중 데이터
 let returnToTxn = false; // 분류 추가 후 내역 시트로 돌아갈지
+let bulk = null;         // 여러 건 담기 { items, assetId, categoryId, bucket }
 
-function closeSheet(){ MR().innerHTML = ''; draft = null; editing = null; returnToTxn = false; }
+function closeSheet(){ MR().innerHTML = ''; draft = null; editing = null; bulk = null; returnToTxn = false; }
 
 function sheet(title, body, left, right){
   // 백드롭에는 data-act 를 두지 않는다. 위임 핸들러의 closest('[data-act]') 가
@@ -382,6 +383,99 @@ function saveCat(){
     return;
   }
   closeSheet(); render();
+}
+
+/* ===================== 여러 건 한번에 담기 ===================== */
+function openBulkSheet(items){
+  const a = mainAsset();
+  const g = a ? groupById(a.groupId) : null;
+  bulk = {
+    items: items,
+    assetId: a ? a.id : (S.assets[0]||{}).id,
+    categoryId: (S.categories.find(c=>c.type==='expense')||{}).id,
+    bucket: (g && g.defaultBucket) || 'living'
+  };
+  renderBulkSheet();
+}
+
+function renderBulkSheet(){
+  const on = bulk.items.filter(x=>x.on);
+  const sum = on.reduce((s,x)=> s + (x.type==='income' ? -x.amount : x.amount), 0);
+  const opts = (list, sel) => list.map(x=>
+    `<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.emoji?x.emoji+' ':'')}${esc(x.name)}</option>`).join('');
+
+  const rows = bulk.items.map((x,i)=>`
+    <div class="row tap" data-act="bulkToggle" data-v="${i}">
+      <div class="bulkchk ${x.on?'on':''}">${x.on?'✓':''}</div>
+      <div class="row-main">
+        <div class="row-title">${esc(x.memo)}</div>
+        <div class="row-sub">${x.date}</div>
+      </div>
+      <div class="row-val ${x.type==='income'?'c-income':'c-living'} num">${x.type==='income'?'+':''}${won(x.amount)}</div>
+    </div>`).join('');
+
+  const body = `
+    <div class="pad" style="padding-bottom:4px">
+      <div class="pocket-k">읽은 내역</div>
+      <div class="pocket-v num">${on.length}건 <span class="pocket-of">/ ${bulk.items.length}건</span></div>
+      <div class="pocket-sub">합계 ${won(sum)} · 눌러서 뺄 수 있어요</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">아래 값으로 한번에 저장합니다</div>
+      <div class="card">
+        <div class="field"><div class="field-k">자산</div>
+          <select id="b-asset" data-act="bulkField">${opts(liveAssets(), bulk.assetId)}</select></div>
+        <div class="field"><div class="field-k">항목</div>
+          <select id="b-cat" data-act="bulkField">${opts(S.categories.filter(c=>c.type==='expense'), bulk.categoryId)}</select></div>
+        <div style="padding:12px 16px"><div class="seg flush seg-bucket">
+          <button class="b-living ${bulk.bucket==='living'?'on':''}" data-act="bulkBucket" data-v="living">생활</button>
+          <button class="b-fixed ${bulk.bucket==='fixed'?'on':''}" data-act="bulkBucket" data-v="fixed">고정</button>
+          <button class="b-event ${bulk.bucket==='event'?'on':''}" data-act="bulkBucket" data-v="event">이벤트</button>
+        </div></div>
+      </div>
+      <div class="hint">항목과 구분은 저장 뒤에 각 내역에서 따로 고칠 수 있습니다.</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">내역 ${bulk.items.length}건</div>
+      <div class="card">${rows}</div>
+    </div>
+    <div style="height:16px"></div>`;
+
+  sheet('여러 건 담기', body, `<button data-act="closeSheet">취소</button>`,
+        `<button data-act="bulkSave" style="font-weight:600">${on.length}건 저장</button>`);
+}
+
+function syncBulkDom(){
+  const a = document.getElementById('b-asset'), c = document.getElementById('b-cat');
+  if(a) bulk.assetId = a.value;
+  if(c) bulk.categoryId = c.value;
+}
+
+function bulkSave(){
+  syncBulkDom();
+  const on = bulk.items.filter(x=>x.on);
+  if(!on.length){ alert('저장할 내역을 하나 이상 선택해 주세요.'); return; }
+  let seq = 0;
+  for(const x of on){
+    S.txns.push({
+      id: uid(), type: x.type, date: x.date, amount: x.amount,
+      assetId: bulk.assetId, toAssetId: null,
+      categoryId: x.type === 'income'
+        ? (S.categories.find(c=>c.type==='income')||{}).id
+        : bulk.categoryId,
+      memo: x.memo,
+      bucket: x.type === 'income' ? 'living' : bulk.bucket,
+      excludeFromTotal: false,
+      createdAt: Date.now() + (seq++)
+    });
+  }
+  save();
+  const n = on.length;
+  bulk = null;
+  closeSheet(); render();
+  toast(n + '건 저장했어요');
 }
 
 /* ===================== 구분별 지출 목록 ===================== */

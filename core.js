@@ -373,6 +373,55 @@ function parseNotification(raw){
   return { amount, memo };
 }
 
+/* ---------------- 거래 목록 캡처에서 여러 건 뽑기 ----------------
+   카드·계좌 내역 화면은 이런 구조다.
+
+     8.17   마켓컬리        -35,300원      ← 거래 (날짜는 첫 줄에만)
+            21:44           236,645원      ← 시각 + 잔액
+            세븐일레븐잠실역신  -1,100원      ← 날짜 없음, 위 날짜를 물려받음
+
+   부호가 붙은 줄만 거래로 보고, 시각으로 시작하는 줄(잔액)은 버린다.
+   날짜는 한 번 나오면 다음 날짜가 나올 때까지 이어진다. */
+const ROW_RE  = /^(?:(\d{3,4})\s*[_\-\s]*)?(.*?)([+\-][^\d]{0,2}[\d,]{2,})\s*원\s*$/;
+const TIME_RE = /^\s*[\d거]{1,2}\s*[:：]\s*\d{2}/;
+
+function parseNotificationList(raw){
+  const today = todayStr();
+  const ty = Number(today.slice(0,4));
+  const lines = String(raw || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const out = [];
+  let curDate = null;
+
+  for(const line of lines){
+    if(TIME_RE.test(line)) continue;              // 잔액 줄
+    const m = line.match(ROW_RE);
+    if(!m) continue;
+    const dtok = m[1], rawName = m[2], rawAmt = m[3];
+
+    if(dtok){                                      // 817 → 8/17,  1225 → 12/25
+      const t = dtok.length === 3 ? '0' + dtok : dtok;
+      const mo = Number(t.slice(0,2)), da = Number(t.slice(2));
+      if(mo >= 1 && mo <= 12 && da >= 1 && da <= 31){
+        const cand = ty + '-' + pad2(mo) + '-' + pad2(da);
+        curDate = cand > today ? (ty-1) + '-' + pad2(mo) + '-' + pad2(da) : cand;
+      }
+    }
+
+    const amount = Number(rawAmt.replace(/[^\d]/g,''));
+    const memo = rawName.replace(/[_|]/g,' ').replace(/\s+/g,' ').trim();
+    if(!amount || memo.length < 2) continue;
+
+    out.push({
+      date: curDate || today,
+      memo: memo,
+      amount: amount,
+      type: rawAmt.trim()[0] === '+' ? 'income' : 'expense',
+      on: true
+    });
+  }
+  return out;
+}
+
 function listTitle(bucket){ return bucket === 'income' ? '수입' : BUCKET_NAME[bucket]; }
 function listClass(bucket){ return bucket === 'income' ? 'c-income' : bucketClass(bucket); }
 
