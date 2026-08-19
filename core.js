@@ -338,6 +338,41 @@ function txnsOfBucket(r, bucket){
     return !t.excludeFromTotal && t.bucket === bucket;
   }).sort(cmpDesc);
 }
+/* ---------------- 알림 캡처에서 금액·내용 뽑기 ----------------
+   카드 승인 문자나 은행 알림을 OCR 한 결과에서 결제액과 가맹점을 찾는다.
+   "누적 828,130원" 처럼 결제액보다 큰 숫자가 함께 오므로
+   가장 큰 금액을 고르면 안 된다. 키워드로 걸러야 한다. */
+const OCR_SKIP    = /누적|잔액|한도|총액|합계|가용|포인트/;
+const OCR_APPROVE = /승인|결제|출금|사용|지불|이체/;
+const OCR_NOISE   = /^\s*$|분 전|시간 전|^\d{1,2}:\d{2}|월 \d+일|LTE|5G|와이파이|실시간|알림|센터/;
+
+function parseNotification(raw){
+  const lines = String(raw || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  let amount = null, at = -1;
+
+  // 승인·결제 줄부터 세 줄 안을 먼저 뒤지고, 못 찾으면 전체를 훑는다
+  const hit = lines.findIndex(l => OCR_APPROVE.test(l));
+  const order = [];
+  if(hit >= 0) for(let i=hit; i<Math.min(hit+3, lines.length); i++) order.push(i);
+  lines.forEach((_,i)=>{ if(order.indexOf(i) < 0) order.push(i); });
+
+  for(const i of order){
+    if(OCR_SKIP.test(lines[i])) continue;
+    const m = lines[i].match(/([\d][\d,]{2,})\s*원/);
+    if(m){ amount = Number(m[1].replace(/,/g,'')); at = i; break; }
+  }
+
+  // 가맹점은 금액 줄 다음부터 누적·잔액 줄 직전까지의 한글 줄
+  let memo = null;
+  for(let i=at+1; i<lines.length; i++){
+    if(OCR_SKIP.test(lines[i])) continue;   // 잔액 줄이 가맹점보다 먼저 올 수 있다
+    if(OCR_NOISE.test(lines[i])) continue;
+    const clean = lines[i].replace(/[^가-힣A-Za-z0-9 ()]/g,'').trim();
+    if(clean.length >= 2 && /[가-힣A-Za-z]/.test(clean) && !/원$/.test(clean)){ memo = clean; break; }
+  }
+  return { amount, memo };
+}
+
 function listTitle(bucket){ return bucket === 'income' ? '수입' : BUCKET_NAME[bucket]; }
 function listClass(bucket){ return bucket === 'income' ? 'c-income' : bucketClass(bucket); }
 

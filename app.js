@@ -205,9 +205,82 @@ const ACTS = {
   },
   previewAnalysis: ()=>openAnalysisSheet(analysisText(ui.statFm), false),
 
+  /* 알림 캡처 읽기 */
+  ocrPick,
+
   /* 시트 */
   closeSheet
 };
+
+/* ---------------- 알림 캡처 읽기 (OCR) ----------------
+   Tesseract 는 한국어 데이터까지 11MB 남짓이라, 이 기능을 누를 때만 받는다.
+   안 쓰는 사람은 한 바이트도 부담하지 않는다. 받고 나면 브라우저가 캐시한다. */
+const OCR_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+let ocrLib = null, ocrWorker = null, ocrBusy = false;
+
+function ocrSay(msg){
+  const el = document.getElementById('ocr-status');
+  if(el) el.textContent = msg;
+}
+function loadOcrLib(){
+  if(ocrLib) return ocrLib;
+  ocrLib = new Promise((res, rej)=>{
+    const sc = document.createElement('script');
+    sc.src = OCR_CDN;
+    sc.onload  = ()=> res(window.Tesseract);
+    sc.onerror = ()=>{ ocrLib = null; rej(new Error('네트워크')); };
+    document.head.appendChild(sc);
+  });
+  return ocrLib;
+}
+async function getOcrWorker(){
+  if(ocrWorker) return ocrWorker;
+  const T = await loadOcrLib();
+  ocrSay('인식 엔진 준비 중… (최초 1회 약 11MB)');
+  ocrWorker = await T.createWorker(['kor'], 1, { logger: m => {
+    if(m.status === 'recognizing text') ocrSay('글자 읽는 중… ' + Math.round((m.progress||0)*100) + '%');
+  }});
+  return ocrWorker;
+}
+
+function ocrPick(){
+  if(ocrBusy) return;
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = async () => {
+    const file = inp.files && inp.files[0];
+    if(!file) return;
+    ocrBusy = true;
+    syncDraft();                       // 지금까지 입력한 값 보존
+    const url = URL.createObjectURL(file);
+    try{
+      ocrSay('이미지 여는 중…');
+      const w = await getOcrWorker();
+      ocrSay('글자 읽는 중…');
+      const { data } = await w.recognize(url);
+      const got = parseNotification(data.text);
+      if(got.amount == null && !got.memo){
+        ocrSay('금액을 찾지 못했어요. 알림 부분만 잘라서 다시 시도해 보세요.');
+        return;
+      }
+      if(got.amount != null) draft.amount = got.amount;
+      if(got.memo) draft.memo = got.memo;
+      renderTxnSheet();
+      toast(got.amount != null
+        ? `${fmt(got.amount)}원${got.memo ? ' · ' + got.memo : ''} 읽었어요`
+        : '내용만 읽었어요');
+    }catch(e){
+      ocrSay(String(e && e.message) === '네트워크'
+        ? '인식 엔진을 못 받았어요. 인터넷 연결을 확인해 주세요.'
+        : '읽지 못했어요. 알림 부분만 잘라서 다시 시도해 보세요.');
+    }finally{
+      URL.revokeObjectURL(url);
+      ocrBusy = false;
+    }
+  };
+  inp.click();
+}
 
 /* ---------------- 클립보드 ---------------- */
 function fallbackCopy(t){

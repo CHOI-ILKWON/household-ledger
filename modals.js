@@ -119,6 +119,19 @@ function renderTxnSheet(){
       </div>
     </div>` : ''}
 
+    ${draft.type !== 'transfer' ? `
+    <div class="section">
+      <div class="card">
+        <div class="row tap" data-act="ocrPick">
+          <div class="row-main">
+            <div class="row-title">🖼 이미지에서 읽기</div>
+            <div class="row-sub" id="ocr-status">카드 승인 문자·알림 캡처에서 금액과 내용을 채웁니다</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+      </div>
+    </div>` : ''}
+
     ${draft.id ? `<button class="btn-wide danger" data-act="deleteTxn">삭제</button>` : ''}
     <div style="height:12px"></div>`;
 
