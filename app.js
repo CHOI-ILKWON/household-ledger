@@ -61,7 +61,7 @@ const ACTS = {
   newTxn: (_,v)=>openTxn(null, v || 'expense'),
   editTxn: id=>openTxn(id),
   // 통계에서는 보고 있는 달, 홈에서는 이번 달 기준
-  bucketList: (_,v)=>openBucketList(v, ui.tab === 'stats' ? ui.statFm : fiscalOf(todayStr())),
+  bucketList: (_,v)=>openBucketList(v, ui.tab === 'stats' ? ui.statFm : homeFm()),
   editTxnFromList: id=>openTxn(id),
   txnType: (_,v)=>{ syncDraft(); draft.type=v; autoCat(); if(v!=='expense'){ draft.excludeFromTotal=false; } renderTxnSheet(); },
   txnBucket: (_,v)=>{ syncDraft(); draft.bucket=v; draft.excludeFromTotal=false; renderTxnSheet(); },
@@ -147,7 +147,12 @@ const ACTS = {
     save(); render();
   },
   openAssetFromSheet: id=>{ closeSheet(); ACTS.openAsset(id); },
-  threeDetail: (_,v)=>openThreeDetail(v, ui.tab === 'stats' ? ui.statFm : fiscalOf(todayStr())),
+  threeDetail: (_,v)=>openThreeDetail(v, ui.tab === 'stats' ? ui.statFm : homeFm()),
+  /* 홈 월 이동 */
+  prevHomeMonth: ()=>{ ui.homeFm = shiftMonth(homeFm(), -1); render(false); },
+  nextHomeMonth: ()=>{ ui.homeFm = shiftMonth(homeFm(),  1); render(false); },
+  homeNow: ()=>{ ui.homeFm = null; render(false); },
+  goStatsFm: ()=>{ ui.statFm = homeFm(); go('stats'); },
   saveCat,
   deleteCat: ()=>{
     const used = S.txns.filter(t=>t.categoryId===editing.id).length;

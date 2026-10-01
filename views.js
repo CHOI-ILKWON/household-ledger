@@ -12,6 +12,7 @@ const ui = {
   fm: null,           // 자산상세 회계월
   fy: null,           // 자산상세 회계연도
   statFm: null,
+  homeFm: null,       // 홈에서 보고 있는 회계월 (null = 이번 달)
   statBucket: 'living',
   openCat: null,
   collapsed: {}
@@ -36,9 +37,13 @@ function monthNav(fm, actPrev, actNext){
 }
 
 /* ===================== 홈 ===================== */
+function sameFm(a, b){ return a.y === b.y && a.m === b.m; }
+function homeFm(){ return ui.homeFm || fiscalOf(todayStr()); }
+
 function renderHome(){
   const today = todayStr();
-  const fm = fiscalOf(today);
+  const fm = homeFm();
+  const isNow = sameFm(fm, fiscalOf(today));
   const r = fiscalRange(fm.y, fm.m);
   const sm = summary(r);
 
@@ -77,8 +82,9 @@ function renderHome(){
   }).join('');
 
   return navbar('홈','', `<button data-act="newTxn" class="nav-btn icon">＋</button>`) + `
-  <div class="section" style="margin-top:12px">
-    <div class="section-title">${fmLabel(fm)} · ${rangeLabel(r)}</div>
+  ${monthNav(fm,'prevHomeMonth','nextHomeMonth')}
+  ${isNow ? '' : `<div class="home-back"><button data-act="homeNow">이번 달로 돌아가기</button></div>`}
+  <div class="section" style="margin-top:8px">
     <div class="card">
       <div class="trio">
         <div><div class="trio-k">수입</div><div class="trio-v c-income num">${fmt(sm.income)}</div></div>
@@ -115,7 +121,7 @@ function renderHome(){
     </div>
   </div>
 
-  <div class="section">
+  ${isNow ? `<div class="section">
     <div class="card">
       <div class="pocket">
         <div class="pocket-k">💰 오늘 남은 돈</div>
@@ -125,7 +131,7 @@ function renderHome(){
         ${poolAssets.length > 1 ? `<div class="pocket-sub">${poolAssets.map(a=>esc(a.name)).join(' + ')}</div>` : ''}
       </div>
     </div>
-  </div>
+  </div>` : ''}
 
   ${compareCard(fm, r, today)}
 
@@ -138,7 +144,7 @@ function renderHome(){
 
   <div class="section">
     <div class="card">
-      <div class="row tap" data-act="goStats"><div class="row-main"><div class="row-title">📊 이번 달 통계 보기</div></div><div class="chev">›</div></div>
+      <div class="row tap" data-act="goStatsFm"><div class="row-main"><div class="row-title">📊 ${isNow?'이번 달':fmLabel(fm)} 통계 보기</div></div><div class="chev">›</div></div>
     </div>
   </div>
   <div style="height:20px"></div>`;
@@ -148,8 +154,12 @@ function renderHome(){
  *  이번 달은 진행 중이라 완결된 저번 달과 그냥 견주면 항상 이번 달이 이긴다.
  *  그래서 저번 달도 같은 일차까지만 잘라서 본다. */
 function compareCard(fm, r, today){
-  const dayIdx = Math.max(0, daysBetween(r.start, today));
+  // 지난 달을 볼 때는 그 달 전체끼리 비교한다
+  const isNow  = sameFm(fm, fiscalOf(today));
+  const dayIdx = isNow ? Math.max(0, daysBetween(r.start, today)) : daysBetween(r.start, r.end);
   const dayNo  = dayIdx + 1;
+  const curL   = isNow ? `이번 달 ${dayNo}일차` : `${fm.m+1}월 전체`;
+  const prvL   = isNow ? `저번 달 ${dayNo}일차` : `${shiftMonth(fm,-1).m+1}월 전체`;
   const pv = shiftMonth(fm, -1);
 
   if(!monthHasTxn(pv)){
@@ -172,11 +182,11 @@ function compareCard(fm, r, today){
 
   return `<div class="section">
     <div class="card"><div class="pocket">
-      <div class="pocket-k">📊 저번 달 이맘때보다</div>
+      <div class="pocket-k">📊 ${isNow?'저번 달 이맘때보다':'저번 달보다'}</div>
       <div class="pocket-v num ${cls}">${diff === 0 ? '' : won(Math.abs(diff))}<span class="pocket-suffix">${word}</span></div>
       <div class="cmp">
-        <div class="cmp-row"><span>이번 달 ${dayNo}일차</span><span class="num">${won(cur.slack)}</span></div>
-        <div class="cmp-row c-lbl2"><span>저번 달 ${dayNo}일차</span><span class="num">${won(prev.slack)}</span></div>
+        <div class="cmp-row"><span>${curL}</span><span class="num">${won(cur.slack)}</span></div>
+        <div class="cmp-row c-lbl2"><span>${prvL}</span><span class="num">${won(prev.slack)}</span></div>
       </div>
     </div></div>
   </div>`;
@@ -197,7 +207,7 @@ function threeCard(fm, r, sm, compactMode){
     ${compactMode ? '' : '<div class="section-title">세 지표</div>'}
     <div class="card">
       <div class="pocket">
-        <div class="pocket-k">🏭 ${compactMode?'이번 달 ':''}순현금흐름 <span class="c-lbl3">수입 − 운영비</span></div>
+        <div class="pocket-k">🏭 ${compactMode?(sameFm(fm, fiscalOf(todayStr()))?'이번 달 ':fmLabel(fm)+' '):''}순현금흐름 <span class="c-lbl3">수입 − 운영비</span></div>
         <div class="pocket-v num ${cfCls}">${cf>0?'+':''}${won(cf)}</div>
         <div class="pocket-sub">${monthHasTxn(pv) ? `전월 ${won(smPv.cashflow)} · ${dCf>=0?'▲':'▼'} ${won(Math.abs(dCf))}` : '전월 기록 없음'}</div>
       </div>

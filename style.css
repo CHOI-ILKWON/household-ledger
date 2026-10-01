@@ -428,3 +428,5 @@ html[data-theme="dark"] .seg button.on,
 .trend-bar{width:60%;max-width:26px;border-radius:3px;}
 .trend-l{font-size:11px;color:var(--label-3);margin-top:4px;}
 .trend-l.on{color:var(--label);font-weight:600;}
+.home-back{text-align:center;margin:-2px 0 4px;}
+.home-back button{font-size:13px;color:var(--income);padding:4px 10px;}
