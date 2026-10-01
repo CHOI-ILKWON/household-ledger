@@ -355,22 +355,29 @@ function balanceAt(id, dateStr){
   return b;
 }
 
+/** 마통: 종류가 '부채'인 계좌 중 카드가 아닌 것.
+ *  카드는 다음 달 마통·생활비로 갚는 돈이라 재고로 보지 않는다. */
+function isMtong(a){ return a.kind === 'liability' && !/카드/.test(a.name); }
+
 /** 재고: 형태만 바뀌어 남아 있는 돈.
- *  통장 잔액(자산), 앱 안의 부채(마통·카드), 받을 돈(대납).
- *  디딤돌·신용대출처럼 앱 밖에 있는 대출은 잔액 대신 '갚은 원금'으로 잡는다. */
+ *  mtong      마통 잔액 (갚을 돈, 양수)
+ *  mtongChange 이번 달 마통이 늘어난 금액 (+면 더 빌려 씀)
+ *  cash       목적 통장 등 자산 잔액,  recv  받을 돈(대납)
+ *  대출 원금 잔액은 관리하지 않고, 갚은 원금은 summary().principal 로 본다. */
 function stockOf(r){
   const today = todayStr();
   const end = r.end < today ? r.end : today;
   const before = toStr(addDays(parseD(r.start), -1));
-  let cash = 0, debt = 0, debtBefore = 0, recv = 0;
+  let cash = 0, mtong = 0, mtongBefore = 0, recv = 0;
+  const mtongs = [], cashes = [], recvs = [];
   for(const a of liveAssets()){
     const b = balanceAt(a.id, end);
-    if(a.kind === 'liability'){ debt += b; debtBefore += balanceAt(a.id, before); }
-    else if(a.kind === 'receivable') recv += b;
-    else cash += b;
+    if(isMtong(a)){ mtong += b; mtongBefore += balanceAt(a.id, before); mtongs.push({a, b}); }
+    else if(a.kind === 'receivable'){ recv += b; if(b) recvs.push({a, b}); }
+    else if(a.kind !== 'liability'){ cash += b; cashes.push({a, b}); }
   }
-  // 부채는 음수로 저장된다. 늘어난 빚을 양수로 돌려준다.
-  return { cash, debt: -debt, debtChange: debtBefore - debt, recv };
+  // 부채는 음수로 저장된다. 갚을 돈을 양수로 돌려준다.
+  return { cash, mtong: -mtong, mtongChange: mtongBefore - mtong, recv, mtongs, cashes, recvs };
 }
 
 /** 회계월 시작 후 dayIdx일까지만 잘라서 본 '남은 여유'.
@@ -565,8 +572,8 @@ function analysisText(fm){
   L.push(`  순현금흐름       ${fmt(sm.cashflow)}원   (수입 − 운영비. 전월 ${fmt(smPv.cashflow)}원)`);
   L.push(`  운영비           ${fmt(sm.opex)}원   ※ 사라진 돈. 지출 합계에서 원금 상환 제외`);
   L.push(`  갚은 원금        ${fmt(sm.principal)}원   ※ 지출로 나갔지만 빚이 줄어든 돈`);
-  L.push(`  앱 안 부채 변화  ${st.debtChange>=0?'+':''}${fmt(st.debtChange)}원   (마이너스통장·카드. +면 빚이 늘어남)`);
-  L.push(`  앱 안 부채 잔액  ${fmt(st.debt)}원`);
+  L.push(`  마통 잔액        ${fmt(st.mtong)}원   (재고. 이번 달 ${st.mtongChange>=0?'+':''}${fmt(st.mtongChange)}원, +면 더 빌려 씀)`);
+  L.push(`  ※ 디딤돌 원금·대출상환(신용대출 일부 상환)은 갚은 원금, 대출 이자는 운영비`);
   const nm = S.txns.filter(t => t.type==='income' && t.nextMonth && inRange(statDate(t), r));
   if(nm.length) L.push(`  ※ 지난달 말에 미리 들어온 ${fmt(nm.reduce((s,t)=>s+t.amount,0))}원을 이번 달 수입으로 셈`);
   L.push('');

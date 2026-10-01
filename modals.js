@@ -591,47 +591,90 @@ function openMainPicker(){
   sheet('메인자산 선택', body, `<button data-act="closeSheet">닫기</button>`);
 }
 
-/* ===================== 실제 잔액 맞추기 =====================
-   은행 앱의 실제 잔액을 넣으면 앱 잔액과의 차이를 한 건으로 기록한다.
-   차이 = 기록하지 않은 지출(또는 수입). 월말에 한 번씩 맞추면 누락이 바로 보인다. */
-function openReconcile(assetId){
-  const a = assetById(assetId); if(!a) return;
-  const cur = balanceOf(a.id);
-  editing = { assetId: a.id };
-  const isDebt = a.kind === 'liability';
-  const body = `
-    <div class="pad" style="padding-bottom:4px">
-      <div class="pocket-k">앱에 기록된 ${isDebt?'갚을 돈':'잔액'}</div>
-      <div class="pocket-v num">${won(isDebt?Math.abs(cur):cur)}</div>
-    </div>
-    <div class="section"><div class="card">
-      <div class="field"><div class="field-k">실제 ${isDebt?'갚을 돈':'잔액'}</div>
-        ${isDebt ? '' : `<button class="signbtn ${cur<0?'neg':''}" data-act="recSign">${cur<0?'−':'+'}</button>`}
-        <input type="text" inputmode="numeric" id="r-bal" placeholder="은행 앱에 보이는 금액" data-act="amtInput"></div>
-    </div>
-    <div class="hint">은행 앱의 금액을 그대로 넣으세요. 차이만큼 <b>잔액 맞춤</b> 내역이 오늘 날짜로 생기고, 생활지출(또는 수입)으로 잡힙니다. 무엇이었는지 알면 나중에 그 내역을 열어 고치세요.</div>
-    <div style="height:12px"></div>`;
-  editing._neg = !isDebt && cur < 0;
-  sheet(`${a.name} 잔액 맞추기`, body, null, `<button data-act="saveReconcile" style="font-weight:600">맞추기</button>`);
-}
-function saveReconcile(){
-  const a = assetById(editing.assetId);
-  const el = document.getElementById('r-bal');
-  const raw = String(el ? el.value : '').replace(/[^0-9]/g,'');
-  if(raw === ''){ alert('실제 금액을 입력해 주세요.'); return; }
-  let real = Number(raw);
-  if(a.kind === 'liability') real = -real;
-  else if(editing._neg) real = -real;
-  const diff = real - balanceOf(a.id);
-  if(diff === 0){ closeSheet(); toast('이미 맞아요. 누락 없음 👍'); return; }
-  const type = diff < 0 ? 'expense' : 'income';
-  const cat = S.categories.find(c=>c.type===type && c.name==='잔액 맞춤') || null;
-  S.txns.push({
-    id: uid(), type, date: todayStr(), amount: Math.abs(diff),
-    assetId: a.id, toAssetId: null, categoryId: cat ? cat.id : null,
-    memo: '잔액 맞춤 (기록 누락분)', bucket: 'living', excludeFromTotal: false,
-    createdAt: Date.now()
-  });
-  save(); closeSheet(); render();
-  toast(`${won(Math.abs(diff))} ${diff<0?'지출':'수입'}이 빠져 있었어요`);
+/* ===================== 세 지표 상세 =====================
+   홈·통계의 운영비 / 재고 / 갚은 원금 줄을 누르면 나오는 시트 */
+function openThreeDetail(kind, fm){
+  fm = fm || fiscalOf(todayStr());
+  const r = fiscalRange(fm.y, fm.m);
+  const head = (label, v, cls, sub) => `<div class="pad" style="padding-bottom:6px">
+      <div class="pocket-k">${fmLabel(fm)} · ${rangeLabel(r)}</div>
+      <div class="pocket-v num ${cls}">${v}</div>
+      ${sub ? `<div class="pocket-sub">${sub}</div>` : ''}
+    </div>`;
+  const line = (k, v, cls, act, id) => `<div class="row ${act?'tap':''}" ${act?`data-act="${act}" data-id="${id}"`:''}>
+      <div class="row-main"><div class="row-title">${k}</div></div>
+      <div class="row-val ${cls||''} num">${v}</div>${act?'<div class="chev">›</div>':''}</div>`;
+  let title, body;
+
+  if(kind === 'opex'){
+    const sm = summary(r);
+    title = '운영비';
+    let sec = '';
+    for(const b of ['fixed','living','event']){
+      const map = {}; let tot = 0;
+      for(const t of S.txns){
+        if(t.type !== 'expense' || t.excludeFromTotal || t.bucket !== b) continue;
+        if(!inRange(statDate(t), r)) continue;
+        const v = t.amount - principalOf(t);
+        if(!v) continue;
+        map[t.categoryId] = (map[t.categoryId] || 0) + v; tot += v;
+      }
+      const keys = Object.keys(map).sort((x,y)=>map[y]-map[x]);
+      sec += `<div class="ghead"><div class="ghead-n">${BUCKET_NAME[b]}${b==='fixed'?' <span class="c-lbl3">원금 제외</span>':''}</div>
+        <div class="ghead-v num ${bucketClass(b)}">${won(tot)}</div></div>
+        <div class="card">${keys.length ? keys.map(k=>{
+          const c = catById(k);
+          return line(`${c&&c.emoji?c.emoji+' ':''}${esc(catName(k))}`, won(map[k]), '');
+        }).join('') : '<div class="row"><div class="row-main c-lbl3">없음</div></div>'}</div>`;
+    }
+    body = head('운영비', won(sm.opex), 'c-living', '사라진 돈 · 갚은 원금은 빠져 있어요') + `<div class="section">${sec}</div>`;
+  }
+
+  else if(kind === 'stock'){
+    const st = stockOf(r);
+    title = '재고';
+    const ids = new Set(st.mtongs.map(x=>x.a.id));
+    let borrow = 0, repay = 0;
+    for(const t of S.txns){
+      if(!inRange(t.date, r)) continue;
+      for(const id of ids){
+        const d = delta(t, id);
+        if(d < 0) borrow += -d; else if(d > 0) repay += d;
+      }
+    }
+    const mc = st.mtongChange;
+    body = head('마통', won(st.mtong), st.mtong?'c-living':'',
+        `이번 달 ${mc>0?'+':mc<0?'−':''}${won(Math.abs(mc))} ${mc>0?'늘었어요':mc<0?'줄었어요':'그대로예요'}`) + `
+      <div class="section"><div class="section-title">이번 달 마통 움직임</div><div class="card">
+        ${line('마통으로 쓴 돈', '+'+won(borrow), 'c-living')}
+        ${line('마통에 넣은 돈', '−'+won(repay), 'c-income')}
+      </div></div>
+      <div class="section"><div class="section-title">마통 계좌</div><div class="card">
+        ${st.mtongs.length ? st.mtongs.map(x=>line(esc(x.a.name), won(Math.abs(x.b)), x.b?'c-living':'', 'openAssetFromSheet', x.a.id)).join('')
+          : '<div class="row"><div class="row-main c-lbl3">부채 계좌가 없어요</div></div>'}
+      </div></div>
+      <div class="section"><div class="section-title">묶여 있는 통장 잔액 ${won(st.cash)}</div><div class="card">
+        ${st.cashes.filter(x=>x.b).sort((p,q)=>q.b-p.b).map(x=>line(esc(x.a.name), won(x.b), x.b<0?'c-living':'', 'openAssetFromSheet', x.a.id)).join('') || '<div class="row"><div class="row-main c-lbl3">없음</div></div>'}
+      </div></div>
+      ${st.recvs.length ? `<div class="section"><div class="section-title">받을 돈 (대납)</div><div class="card">
+        ${st.recvs.map(x=>line(esc(x.a.name), won(Math.abs(x.b)), 'c-muted', 'openAssetFromSheet', x.a.id)).join('')}
+      </div></div>` : ''}
+      <div class="hint">카드는 다음 달 마통·생활비로 갚는 돈이라 재고에서 뺐어요.</div>`;
+  }
+
+  else {
+    const list = S.txns.filter(t => principalOf(t) > 0 && inRange(statDate(t), r)).sort(cmpDesc);
+    const tot = list.reduce((s,t)=>s+principalOf(t), 0);
+    title = '갚은 원금';
+    body = head('갚은 원금', won(tot), 'c-income', '디딤돌 원금 칸 + 대출상환 분류') + `
+      <div class="section"><div class="card">
+        ${list.length ? list.map(t=>{
+          const p = principalOf(t);
+          const k = `${esc(t.memo || catName(t.categoryId))}<div class="row-sub">${t.date} · ${esc(catName(t.categoryId))}${p<t.amount?` · 이자 ${fmt(t.amount-p)}원은 운영비`:''}</div>`;
+          return line(k, won(p), 'c-income', 'editTxnFromList', t.id);
+        }).join('') : '<div class="row"><div class="row-main c-lbl3">이번 달 갚은 원금이 없어요</div></div>'}
+      </div></div>`;
+  }
+
+  sheet(title, body + '<div style="height:20px"></div>', `<button data-act="closeSheet">닫기</button>`);
 }

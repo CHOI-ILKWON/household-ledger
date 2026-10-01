@@ -146,9 +146,8 @@ const ACTS = {
     S.categories[gi] = list[j]; S.categories[gj] = list[i];
     save(); render();
   },
-  reconcile: id=>openReconcile(id),
-  recSign: (_,__,el)=>{ editing._neg = !editing._neg; el.textContent = editing._neg?'−':'+'; el.classList.toggle('neg', editing._neg); },
-  saveReconcile,
+  openAssetFromSheet: id=>{ closeSheet(); ACTS.openAsset(id); },
+  threeDetail: (_,v)=>openThreeDetail(v, ui.tab === 'stats' ? ui.statFm : fiscalOf(todayStr())),
   saveCat,
   deleteCat: ()=>{
     const used = S.txns.filter(t=>t.categoryId===editing.id).length;

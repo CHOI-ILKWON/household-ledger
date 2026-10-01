@@ -42,12 +42,6 @@ function renderHome(){
   const r = fiscalRange(fm.y, fm.m);
   const sm = summary(r);
 
-  let net = 0, recv = 0;
-  for(const a of liveAssets()){
-    const b = balanceOf(a.id);
-    if(a.kind === 'receivable') recv += b; else net += b;
-  }
-
   // 일일 용돈은 메인자산이 속한 그룹 전체를 쓸 수 있는 돈으로 본다
   const ma = mainAsset();
   const mg = ma ? groupById(ma.groupId) : null;
@@ -83,13 +77,7 @@ function renderHome(){
   }).join('');
 
   return navbar('홈','', `<button data-act="newTxn" class="nav-btn icon">＋</button>`) + `
-  <div class="hero">
-    <div class="hero-label">총 잔액</div>
-    <div class="hero-amt num ${net<0?'c-living':''}">${won(net)}</div>
-    ${recv !== 0 ? `<div class="hero-sub">${recv < 0 ? '정산받을 돈' : '미리 받은 돈'} ${won(Math.abs(recv))} · 총 잔액에 미포함</div>` : ''}
-  </div>
-
-  <div class="section">
+  <div class="section" style="margin-top:12px">
     <div class="section-title">${fmLabel(fm)} · ${rangeLabel(r)}</div>
     <div class="card">
       <div class="trio">
@@ -195,45 +183,40 @@ function compareCard(fm, r, today){
 }
 
 /** 세 지표 카드 (홈·통계 공용)
- *  순현금흐름 = 수입 − 운영비.  운영비 = 지출 − 원금 상환.
- *  재고 = 앱 안 부채(마통·카드)의 변화 + 갚은 원금(앱 밖 대출). */
+ *  순현금흐름 = 수입 − 운영비.  운영비 = 지출 − 갚은 원금.
+ *  재고 = 마통 잔액.  세 줄은 눌러서 상세를 본다. */
 function threeCard(fm, r, sm, compactMode){
   const pv = shiftMonth(fm, -1);
   const smPv = summary(fiscalRange(pv.y, pv.m));
   const st = stockOf(r);
   const cf = sm.cashflow;
   const cfCls = cf > 0 ? 'c-income' : cf < 0 ? 'c-living' : '';
-  const hasPrev = monthHasTxn(pv);
   const dCf = cf - smPv.cashflow;
-  const debtNet = st.debtChange - sm.principal;      // +면 전체 빚이 늘어남
+  const mc = st.mtongChange;
   return `<div class="section">
     ${compactMode ? '' : '<div class="section-title">세 지표</div>'}
     <div class="card">
-      <div class="pocket ${compactMode?'tap':''}" ${compactMode?'data-act="goStats"':''}>
-        <div class="pocket-k">🏭 이번 달 순현금흐름 <span class="c-lbl3">수입 − 운영비</span></div>
+      <div class="pocket">
+        <div class="pocket-k">🏭 ${compactMode?'이번 달 ':''}순현금흐름 <span class="c-lbl3">수입 − 운영비</span></div>
         <div class="pocket-v num ${cfCls}">${cf>0?'+':''}${won(cf)}</div>
-        <div class="pocket-sub">${hasPrev ? `전월 ${won(smPv.cashflow)} · ${dCf>=0?'▲':'▼'} ${won(Math.abs(dCf))}` : '전월 기록 없음'}</div>
+        <div class="pocket-sub">${monthHasTxn(pv) ? `전월 ${won(smPv.cashflow)} · ${dCf>=0?'▲':'▼'} ${won(Math.abs(dCf))}` : '전월 기록 없음'}</div>
       </div>
       <div class="split">
-        <div class="split-row">
+        <div class="split-row tap-row" data-act="threeDetail" data-v="opex">
           <div class="split-k"><span class="dot" style="background:var(--living)"></span>운영비 <span class="c-lbl3">사라진 돈</span></div>
-          <div class="split-v c-living num">${won(sm.opex)}</div>
+          <div class="split-v c-living num">${won(sm.opex)}<span class="chev sm">›</span></div>
         </div>
-        <div class="split-row">
+        <div class="split-row tap-row" data-act="threeDetail" data-v="stock">
+          <div class="split-k"><span class="dot" style="background:var(--muted)"></span>재고 <span class="c-lbl3">마통 ${mc>0?'+':mc<0?'−':''}${compact(Math.abs(mc))}</span></div>
+          <div class="split-v num ${st.mtong?'c-living':''}">${won(st.mtong)}<span class="chev sm">›</span></div>
+        </div>
+        <div class="split-row tap-row" data-act="threeDetail" data-v="principal">
           <div class="split-k"><span class="dot" style="background:var(--income)"></span>갚은 원금 <span class="c-lbl3">빚 감소</span></div>
-          <div class="split-v c-income num">${won(sm.principal)}</div>
-        </div>
-        <div class="split-row">
-          <div class="split-k"><span class="dot" style="background:var(--muted)"></span>마통·카드 빚 <span class="c-lbl3">이번 달 변화</span></div>
-          <div class="split-v num ${st.debtChange>0?'c-living':st.debtChange<0?'c-income':''}">${st.debtChange>0?'+':''}${won(st.debtChange)}</div>
-        </div>
-        <div class="split-row" style="padding-top:7px">
-          <div class="split-k">전체 빚 ${debtNet>0?'늘었어요':debtNet<0?'줄었어요':'그대로'}</div>
-          <div class="split-v num ${debtNet>0?'c-living':debtNet<0?'c-income':''}" style="font-weight:600">${debtNet>0?'+':debtNet<0?'−':''}${won(Math.abs(debtNet))}</div>
+          <div class="split-v c-income num">${won(sm.principal)}<span class="chev sm">›</span></div>
         </div>
       </div>
     </div>
-    ${compactMode ? '' : `<div class="hint">운영비는 생활·고정·이벤트 지출에서 <b>원금 상환을 뺀 금액</b>입니다. 원금은 쓴 돈이 아니라 빚을 줄인 돈이라 따로 봅니다. 대납(지출 미표기)은 어디에도 들어가지 않습니다.</div>`}
+    ${compactMode ? '' : `<div class="hint">운영비는 생활·고정·이벤트 지출에서 <b>갚은 원금을 뺀 금액</b>입니다. 갚은 원금은 디딤돌 원금 칸과 '대출상환' 분류 지출입니다. 재고는 마통 잔액이고, 옆의 숫자는 이번 달에 늘어난(+) 또는 줄어든(−) 금액입니다.</div>`}
   </div>`;
 }
 
@@ -343,12 +326,6 @@ function renderAssetDetail(){
       <button class="act in" data-act="newTxn" data-v="income">수입</button>
       <button class="act tr" data-act="newTxn" data-v="transfer">이체</button>
     </div>
-    ${a.kind !== 'receivable' ? `<div class="section" style="margin-top:0"><div class="card">
-      <div class="row tap" data-act="reconcile" data-id="${a.id}">
-        <div class="row-main"><div class="row-title">🔎 실제 잔액 맞추기</div>
-          <div class="row-sub">은행 앱 잔액과 비교해 빠진 기록을 찾습니다</div></div>
-        <div class="chev">›</div>
-      </div></div></div>` : ''}
     <div class="section"><div class="seg">
       <button class="${ui.detailTab==='day'?'on':''}" data-act="detailTab" data-v="day">일별</button>
       <button class="${ui.detailTab==='month'?'on':''}" data-act="detailTab" data-v="month">월별</button>
