@@ -60,6 +60,7 @@ function syncDraft(){
   if(q('f-to'))   draft.toAssetId = q('f-to').value;
   if(q('f-cat') && q('f-cat').value !== '__new__') draft.categoryId = q('f-cat').value;
   if(q('f-memo')) draft.memo = q('f-memo').value;
+  if(q('f-prin')) draft.principal = Number(String(q('f-prin').value).replace(/[^0-9]/g,'')) || 0;
 }
 
 function renderTxnSheet(){
@@ -103,6 +104,15 @@ function renderTxnSheet(){
         return `<button class="chip" data-act="pickCat" data-id="${cid}">${c.emoji||''} ${esc(c.name)}</button>`;
       }).join('')}</div>` : ''}
 
+    ${draft.type === 'income' ? `
+    <div class="section"><div class="card">
+      <div class="switchline" data-act="toggleNextMonth">
+        <div><div class="switchline-k">다음 달 수입으로 계산</div>
+          <div class="switchline-d">월말에 미리 들어온 다음 달 월급·상여. 통계에서 다음 달로 넘어가고, 잔액은 그대로입니다.</div></div>
+        <div class="sw ${draft.nextMonth?'on':''}"></div>
+      </div>
+    </div></div>` : ''}
+
     ${draft.type === 'expense' ? `
     <div class="section">
       <div class="section-title">구분</div>
@@ -119,6 +129,8 @@ function renderTxnSheet(){
         </div>
       </div>
     </div>` : ''}
+
+    ${principalBlock()}
 
     ${draft.type !== 'transfer' ? `
     <div class="section">
@@ -141,6 +153,28 @@ function renderTxnSheet(){
         `<button data-act="saveTxn" style="font-weight:600">저장</button>`);
 }
 
+/** 고정지출에서 빚을 줄인 금액(원금)을 적는 칸.
+ *  디딤돌처럼 원리금을 함께 내는 대출은 매달 원금을 직접 적는다 (이자가 달마다 달라서).
+ *  분류 자체가 '원금 상환'이면 칸 대신 안내만 보여준다. */
+function principalBlock(){
+  if(draft.type !== 'expense' || draft.excludeFromTotal || draft.bucket !== 'fixed') return '';
+  const c = catById(draft.categoryId);
+  if(c && c.principal){
+    return `<div class="hint" style="padding:10px 16px 0">💡 <b>${esc(c.name)}</b>은 원금 상환 분류라 전액이 <b>빚 감소</b>로 잡히고 운영비에서 빠집니다.</div>`;
+  }
+  const amt = draft.amount || 0, p = draft.principal || 0;
+  return `<div class="section">
+    <div class="section-title">원금 (빚 감소)</div>
+    <div class="card">
+      <div class="field"><div class="field-k">원금</div>
+        <input type="text" inputmode="numeric" id="f-prin" placeholder="없으면 비워두세요"
+               value="${p?fmt(p):''}" data-act="amtInput"></div>
+    </div>
+    <div class="hint">대출 상환액 중 원금만 적으세요. 원금은 운영비가 아니라 빚을 줄인 돈으로 계산됩니다.${
+      p && amt >= p ? ` 이자·비용 <b>${fmt(amt-p)}원</b>` : ''}</div>
+  </div>`;
+}
+
 /** keepOpen 이면 저장 후 시트를 열어 둔 채 다음 입력을 받는다.
  *  날짜·자산·항목·구분은 그대로 두고 금액과 내용만 비운다. */
 function saveTxn(keepOpen){
@@ -153,12 +187,20 @@ function saveTxn(keepOpen){
     draft.toAssetId = null;
     if(draft.type === 'income'){ draft.bucket = 'living'; }
   }
+  // 원금은 지출에만, 다음 달 수입은 수입에만 남긴다
+  if(draft.type !== 'expense' || draft.excludeFromTotal || draft.bucket !== 'fixed') delete draft.principal;
+  else if(draft.principal){
+    if(draft.principal > draft.amount){ alert('원금이 금액보다 클 수 없습니다.'); return; }
+  }else delete draft.principal;
+  if(draft.type !== 'income') delete draft.nextMonth;
+  else if(!draft.nextMonth) delete draft.nextMonth;
   if(draft.excludeFromTotal) draft.bucket = 'passthrough';
   else if(draft.bucket === 'passthrough') draft.bucket = 'living';
 
   if(draft.id){
     const i = S.txns.findIndex(x=>x.id===draft.id);
-    S.txns[i] = Object.assign(S.txns[i], draft);
+    // 지운 필드(원금 등)가 남지 않도록 통째로 바꾼다
+    S.txns[i] = Object.assign({ createdAt: S.txns[i].createdAt }, draft);
   }else{
     draft.id = uid(); draft.createdAt = Date.now();
     S.txns.push(draft);
@@ -170,7 +212,8 @@ function saveTxn(keepOpen){
       id:null, type:draft.type, date:draft.date, amount:0,
       assetId:draft.assetId, toAssetId:draft.toAssetId,
       categoryId:draft.categoryId, memo:'',
-      bucket:draft.bucket, excludeFromTotal:draft.excludeFromTotal
+      bucket:draft.bucket, excludeFromTotal:draft.excludeFromTotal,
+      nextMonth:draft.nextMonth
     };
     render();
     renderTxnSheet();
@@ -353,7 +396,12 @@ function renderCatSheet(){
         <button class="b-fixed ${b==='fixed'?'on':''}" data-act="catBucket" data-v="fixed">고정</button>
         <button class="b-event ${b==='event'?'on':''}" data-act="catBucket" data-v="event">이벤트</button>
         <button class="b-pass ${b==='passthrough'?'on':''}" data-act="catBucket" data-v="passthrough">대납</button>
-      </div></div></div>
+      </div></div>
+      <div class="switchline" data-act="catPrincipal">
+        <div><div class="switchline-k">원금 상환 (빚 감소)</div>
+          <div class="switchline-d">켜면 이 분류의 지출은 전액 빚을 줄인 돈으로 보고 운영비에서 뺍니다. 예) 신용대출 원금 상환</div></div>
+        <div class="sw ${editing.principal?'on':''}"></div>
+      </div></div>
     </div>` : ''}
     ${editing.id ? `<button class="btn-wide danger" data-act="deleteCat">분류 삭제</button>` : ''}
     <div style="height:12px"></div>`;
@@ -541,4 +589,49 @@ function openMainPicker(){
   그룹 안에 부채가 섞여 있으면 금액이 확 줄 수 있으니, 생활비용 자산만 한 그룹으로 묶어 두는 편이 좋습니다.</div>
   <div style="height:20px"></div>`;
   sheet('메인자산 선택', body, `<button data-act="closeSheet">닫기</button>`);
+}
+
+/* ===================== 실제 잔액 맞추기 =====================
+   은행 앱의 실제 잔액을 넣으면 앱 잔액과의 차이를 한 건으로 기록한다.
+   차이 = 기록하지 않은 지출(또는 수입). 월말에 한 번씩 맞추면 누락이 바로 보인다. */
+function openReconcile(assetId){
+  const a = assetById(assetId); if(!a) return;
+  const cur = balanceOf(a.id);
+  editing = { assetId: a.id };
+  const isDebt = a.kind === 'liability';
+  const body = `
+    <div class="pad" style="padding-bottom:4px">
+      <div class="pocket-k">앱에 기록된 ${isDebt?'갚을 돈':'잔액'}</div>
+      <div class="pocket-v num">${won(isDebt?Math.abs(cur):cur)}</div>
+    </div>
+    <div class="section"><div class="card">
+      <div class="field"><div class="field-k">실제 ${isDebt?'갚을 돈':'잔액'}</div>
+        ${isDebt ? '' : `<button class="signbtn ${cur<0?'neg':''}" data-act="recSign">${cur<0?'−':'+'}</button>`}
+        <input type="text" inputmode="numeric" id="r-bal" placeholder="은행 앱에 보이는 금액" data-act="amtInput"></div>
+    </div>
+    <div class="hint">은행 앱의 금액을 그대로 넣으세요. 차이만큼 <b>잔액 맞춤</b> 내역이 오늘 날짜로 생기고, 생활지출(또는 수입)으로 잡힙니다. 무엇이었는지 알면 나중에 그 내역을 열어 고치세요.</div>
+    <div style="height:12px"></div>`;
+  editing._neg = !isDebt && cur < 0;
+  sheet(`${a.name} 잔액 맞추기`, body, null, `<button data-act="saveReconcile" style="font-weight:600">맞추기</button>`);
+}
+function saveReconcile(){
+  const a = assetById(editing.assetId);
+  const el = document.getElementById('r-bal');
+  const raw = String(el ? el.value : '').replace(/[^0-9]/g,'');
+  if(raw === ''){ alert('실제 금액을 입력해 주세요.'); return; }
+  let real = Number(raw);
+  if(a.kind === 'liability') real = -real;
+  else if(editing._neg) real = -real;
+  const diff = real - balanceOf(a.id);
+  if(diff === 0){ closeSheet(); toast('이미 맞아요. 누락 없음 👍'); return; }
+  const type = diff < 0 ? 'expense' : 'income';
+  const cat = S.categories.find(c=>c.type===type && c.name==='잔액 맞춤') || null;
+  S.txns.push({
+    id: uid(), type, date: todayStr(), amount: Math.abs(diff),
+    assetId: a.id, toAssetId: null, categoryId: cat ? cat.id : null,
+    memo: '잔액 맞춤 (기록 누락분)', bucket: 'living', excludeFromTotal: false,
+    createdAt: Date.now()
+  });
+  save(); closeSheet(); render();
+  toast(`${won(Math.abs(diff))} ${diff<0?'지출':'수입'}이 빠져 있었어요`);
 }

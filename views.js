@@ -141,6 +141,8 @@ function renderHome(){
 
   ${compareCard(fm, r, today)}
 
+  ${threeCard(fm, r, sm, true)}
+
   <div class="section">
     <div class="section-title">자산</div>
     <div class="card"><div class="grid5">${cells}</div></div>
@@ -189,6 +191,75 @@ function compareCard(fm, r, today){
         <div class="cmp-row c-lbl2"><span>저번 달 ${dayNo}일차</span><span class="num">${won(prev.slack)}</span></div>
       </div>
     </div></div>
+  </div>`;
+}
+
+/** 세 지표 카드 (홈·통계 공용)
+ *  순현금흐름 = 수입 − 운영비.  운영비 = 지출 − 원금 상환.
+ *  재고 = 앱 안 부채(마통·카드)의 변화 + 갚은 원금(앱 밖 대출). */
+function threeCard(fm, r, sm, compactMode){
+  const pv = shiftMonth(fm, -1);
+  const smPv = summary(fiscalRange(pv.y, pv.m));
+  const st = stockOf(r);
+  const cf = sm.cashflow;
+  const cfCls = cf > 0 ? 'c-income' : cf < 0 ? 'c-living' : '';
+  const hasPrev = monthHasTxn(pv);
+  const dCf = cf - smPv.cashflow;
+  const debtNet = st.debtChange - sm.principal;      // +면 전체 빚이 늘어남
+  return `<div class="section">
+    ${compactMode ? '' : '<div class="section-title">세 지표</div>'}
+    <div class="card">
+      <div class="pocket ${compactMode?'tap':''}" ${compactMode?'data-act="goStats"':''}>
+        <div class="pocket-k">🏭 이번 달 순현금흐름 <span class="c-lbl3">수입 − 운영비</span></div>
+        <div class="pocket-v num ${cfCls}">${cf>0?'+':''}${won(cf)}</div>
+        <div class="pocket-sub">${hasPrev ? `전월 ${won(smPv.cashflow)} · ${dCf>=0?'▲':'▼'} ${won(Math.abs(dCf))}` : '전월 기록 없음'}</div>
+      </div>
+      <div class="split">
+        <div class="split-row">
+          <div class="split-k"><span class="dot" style="background:var(--living)"></span>운영비 <span class="c-lbl3">사라진 돈</span></div>
+          <div class="split-v c-living num">${won(sm.opex)}</div>
+        </div>
+        <div class="split-row">
+          <div class="split-k"><span class="dot" style="background:var(--income)"></span>갚은 원금 <span class="c-lbl3">빚 감소</span></div>
+          <div class="split-v c-income num">${won(sm.principal)}</div>
+        </div>
+        <div class="split-row">
+          <div class="split-k"><span class="dot" style="background:var(--muted)"></span>마통·카드 빚 <span class="c-lbl3">이번 달 변화</span></div>
+          <div class="split-v num ${st.debtChange>0?'c-living':st.debtChange<0?'c-income':''}">${st.debtChange>0?'+':''}${won(st.debtChange)}</div>
+        </div>
+        <div class="split-row" style="padding-top:7px">
+          <div class="split-k">전체 빚 ${debtNet>0?'늘었어요':debtNet<0?'줄었어요':'그대로'}</div>
+          <div class="split-v num ${debtNet>0?'c-living':debtNet<0?'c-income':''}" style="font-weight:600">${debtNet>0?'+':debtNet<0?'−':''}${won(Math.abs(debtNet))}</div>
+        </div>
+      </div>
+    </div>
+    ${compactMode ? '' : `<div class="hint">운영비는 생활·고정·이벤트 지출에서 <b>원금 상환을 뺀 금액</b>입니다. 원금은 쓴 돈이 아니라 빚을 줄인 돈이라 따로 봅니다. 대납(지출 미표기)은 어디에도 들어가지 않습니다.</div>`}
+  </div>`;
+}
+
+/** 최근 6개월 순현금흐름 막대 */
+function cashflowTrend(fm){
+  const months = [];
+  for(let i=5; i>=0; i--){
+    const m = shiftMonth(fm, -i);
+    const sm = summary(fiscalRange(m.y, m.m));
+    months.push({ m, v: sm.cashflow, has: monthHasTxn(m) });
+  }
+  const max = Math.max(1, ...months.map(x=>Math.abs(x.v)));
+  const bars = months.map(x=>{
+    const h = x.has ? Math.round(Math.abs(x.v)/max*56) : 0;
+    const up = x.v >= 0;
+    const now = x.m.y === fm.y && x.m.m === fm.m;
+    return `<div class="trend-col">
+      <div class="trend-v num ${up?'c-income':'c-living'}">${x.has?compact(x.v):'-'}</div>
+      <div class="trend-up">${up&&h?`<div class="trend-bar" style="height:${h}px;background:var(--income)"></div>`:''}</div>
+      <div class="trend-down">${!up&&h?`<div class="trend-bar" style="height:${h}px;background:var(--living)"></div>`:''}</div>
+      <div class="trend-l ${now?'on':''}">${x.m.m+1}월</div>
+    </div>`;
+  }).join('');
+  return `<div class="section">
+    <div class="section-title">순현금흐름 추이</div>
+    <div class="card"><div class="trend">${bars}</div></div>
   </div>`;
 }
 
@@ -272,6 +343,12 @@ function renderAssetDetail(){
       <button class="act in" data-act="newTxn" data-v="income">수입</button>
       <button class="act tr" data-act="newTxn" data-v="transfer">이체</button>
     </div>
+    ${a.kind !== 'receivable' ? `<div class="section" style="margin-top:0"><div class="card">
+      <div class="row tap" data-act="reconcile" data-id="${a.id}">
+        <div class="row-main"><div class="row-title">🔎 실제 잔액 맞추기</div>
+          <div class="row-sub">은행 앱 잔액과 비교해 빠진 기록을 찾습니다</div></div>
+        <div class="chev">›</div>
+      </div></div></div>` : ''}
     <div class="section"><div class="seg">
       <button class="${ui.detailTab==='day'?'on':''}" data-act="detailTab" data-v="day">일별</button>
       <button class="${ui.detailTab==='month'?'on':''}" data-act="detailTab" data-v="month">월별</button>
@@ -346,7 +423,7 @@ function txnRow(t, assetId, bal){
   return `<div class="txn" data-act="editTxn" data-id="${t.id}">
     <div class="txn-cat">${c&&t.type!=='transfer'?c.emoji+' ':''}${esc(cat)}</div>
     <div class="txn-body">
-      <div class="txn-memo">${memo}${t.excludeFromTotal?'<span class="tag">미표기</span>':''}${t.type==='expense'&&t.bucket==='fixed'?'<span class="tag">고정</span>':''}</div>
+      <div class="txn-memo">${memo}${t.excludeFromTotal?'<span class="tag">미표기</span>':''}${t.type==='expense'&&t.bucket==='fixed'?'<span class="tag">고정</span>':''}${principalOf(t)?`<span class="tag">원금 ${compact(principalOf(t))}</span>`:''}${t.nextMonth?'<span class="tag">다음 달</span>':''}</div>
     </div>
     <div class="txn-right">
       <div class="txn-amt ${cls} num">${amtTxt}</div>
@@ -492,7 +569,7 @@ function renderStats(){
   const map = {}; let total = 0;
   for(const t of S.txns){
     if(t.type !== 'expense' || t.excludeFromTotal) continue;
-    if(!inRange(t.date, r)) continue;
+    if(!inRange(statDate(t), r)) continue;
     if(b !== 'all' && (t.bucket || 'living') !== b) continue;
     if(b === 'all' && t.bucket === 'passthrough') continue;
     (map[t.categoryId] = map[t.categoryId] || { amt:0, items:[] });
@@ -537,6 +614,9 @@ function renderStats(){
       <div class="pocket-sub">${diff===null?'전월 데이터 없음':`전월 대비 ${diff>0?'▲':diff<0?'▼':'-'} ${Math.abs(diff)}% (${fmt(before)}원)`}</div>
     </div></div>
   </div>
+
+  ${threeCard(ui.statFm, r, sm, false)}
+  ${cashflowTrend(ui.statFm)}
 
   <div class="section">
     <div class="section-title">진짜 여윳돈</div>

@@ -65,6 +65,7 @@ const ACTS = {
   editTxnFromList: id=>openTxn(id),
   txnType: (_,v)=>{ syncDraft(); draft.type=v; autoCat(); if(v!=='expense'){ draft.excludeFromTotal=false; } renderTxnSheet(); },
   txnBucket: (_,v)=>{ syncDraft(); draft.bucket=v; draft.excludeFromTotal=false; renderTxnSheet(); },
+  toggleNextMonth: ()=>{ syncDraft(); draft.nextMonth = !draft.nextMonth; renderTxnSheet(); },
   toggleExclude: ()=>{ syncDraft(); draft.excludeFromTotal = !draft.excludeFromTotal; renderTxnSheet(); },
   pickCat: id=>{ syncDraft(); draft.categoryId=id; applyCatBucket(); renderTxnSheet(); },
   catChange: ()=>{
@@ -135,6 +136,19 @@ const ACTS = {
   editCat: id=>openCatEditor(id),
   catBucket: (_,v)=>{ syncCatDom(); editing.bucket=v; renderCatSheet(); },
   catColor:  (_,v)=>{ syncCatDom(); editing.color=v;  renderCatSheet(); },
+  catPrincipal: ()=>{ syncCatDom(); editing.principal = !editing.principal; renderCatSheet(); },
+  moveCat: (id,v)=>{
+    const c = catById(id); if(!c) return;
+    const list = S.categories.filter(x=>x.type===c.type);
+    const i = list.indexOf(c), j = i + Number(v);
+    if(j < 0 || j >= list.length) return;
+    const gi = S.categories.indexOf(list[i]), gj = S.categories.indexOf(list[j]);
+    S.categories[gi] = list[j]; S.categories[gj] = list[i];
+    save(); render();
+  },
+  reconcile: id=>openReconcile(id),
+  recSign: (_,__,el)=>{ editing._neg = !editing._neg; el.textContent = editing._neg?'−':'+'; el.classList.toggle('neg', editing._neg); },
+  saveReconcile,
   saveCat,
   deleteCat: ()=>{
     const used = S.txns.filter(t=>t.categoryId===editing.id).length;

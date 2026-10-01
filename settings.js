@@ -129,11 +129,15 @@ function renderCatSettings(){
     return `<div class="section">
       <div class="section-title">${title}</div>
       <div class="card">
-        ${list.map(c=>`<div class="row tap" data-act="editCat" data-id="${c.id}">
+        ${list.map((c,i)=>`<div class="row">
           <div class="swatch" style="background:${c.color}"></div>
-          <div class="row-main"><div class="row-title">${c.emoji||''} ${esc(c.name)}</div>
-            ${type==='expense' ? `<div class="row-sub">기본 ${BUCKET_NAME[c.bucket]}</div>` : ''}</div>
-          <div class="chev">›</div>
+          <div class="row-main" data-act="editCat" data-id="${c.id}"><div class="row-title">${c.emoji||''} ${esc(c.name)}</div>
+            ${type==='expense' ? `<div class="row-sub">기본 ${BUCKET_NAME[c.bucket]}${c.principal?' · 원금 상환':''}</div>` : ''}</div>
+          <div class="reorder">
+            <button data-act="moveCat" data-id="${c.id}" data-v="-1" ${i===0?'disabled':''}>▲</button>
+            <button data-act="moveCat" data-id="${c.id}" data-v="1" ${i===list.length-1?'disabled':''}>▼</button>
+            <button data-act="editCat" data-id="${c.id}">✏️</button>
+          </div>
         </div>`).join('') || `<div class="row"><div class="row-main c-lbl3">없음</div></div>`}
         <div class="row tap" data-act="newCat" data-v="${type}"><div class="row-main"><div class="row-title c-income">＋ 분류 추가</div></div></div>
       </div>
@@ -141,6 +145,6 @@ function renderCatSettings(){
   };
   return navbar('분류 관리', `<button data-act="goSettings">‹ 설정</button>`)
     + sec('expense','지출 분류') + sec('income','수입 분류')
-    + `<div class="hint">분류의 기본 구분이 내역 추가 시 자동으로 선택됩니다. 건별로 바꿀 수 있습니다.</div>
+    + `<div class="hint">▲▼로 순서를 바꾸면 내역 추가 화면의 항목 목록도 같은 순서로 나옵니다. 분류의 기본 구분이 내역 추가 시 자동으로 선택되고, 건별로 바꿀 수 있습니다.</div>
        <div style="height:32px"></div>`;
 }

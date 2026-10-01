@@ -416,3 +416,15 @@ html[data-theme="dark"] .seg button.on,
   display:flex;align-items:center;justify-content:center;
 }
 .bulkchk.on{background:var(--income);border-color:var(--income);}
+
+/* 세 지표 · 순현금흐름 추이 (v19) */
+.pocket.tap:active{background:var(--fill);}
+.trend{display:flex;gap:4px;padding:12px 10px 10px;}
+.trend-col{flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;}
+.trend-v{font-size:10px;margin-bottom:4px;white-space:nowrap;}
+.trend-up,.trend-down{height:56px;width:100%;display:flex;justify-content:center;}
+.trend-up{align-items:flex-end;border-bottom:.5px solid var(--sep-strong);}
+.trend-down{align-items:flex-start;}
+.trend-bar{width:60%;max-width:26px;border-radius:3px;}
+.trend-l{font-size:11px;color:var(--label-3);margin-top:4px;}
+.trend-l.on{color:var(--label);font-weight:600;}
