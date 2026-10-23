@@ -390,6 +390,23 @@ html[data-theme="dark"] .seg button.on,
 .chip{flex:0 0 auto;padding:6px 11px;border-radius:15px;background:var(--fill);font-size:13px;}
 .chip:active{background:var(--fill-2);}
 
+/* ===== v22: 빠른 태그 · 큰 지출 · 마통 경고 ===== */
+.tagchips{padding-top:8px;}
+.tagchip{color:var(--label-2);}
+.tagchip.on{background:var(--income);color:#fff;}
+.big-hint{padding:8px 16px 0;color:var(--living);font-size:13px;}
+.tap-card{cursor:pointer;}
+.tap-card:active{opacity:.7;}
+.warn-card{box-shadow:inset 0 0 0 1.5px var(--living);}
+.warn-badge{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:9px;
+  background:var(--living);color:#fff;font-size:11px;font-weight:600;vertical-align:1px;}
+.good-badge{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:9px;
+  background:var(--income);color:#fff;font-size:11px;font-weight:600;vertical-align:1px;}
+.tap-inline{cursor:pointer;}
+.big-row{cursor:pointer;gap:10px;}
+.big-row:active{opacity:.6;}
+.big-memo{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
 /* ===== 토스트 ===== */
 #toast{
   position:fixed;left:50%;transform:translateX(-50%) translateY(14px);

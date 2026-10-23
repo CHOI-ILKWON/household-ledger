@@ -121,6 +121,8 @@ function renderHome(){
     </div>
   </div>
 
+  ${mtongCard(fm, r)}
+
   ${isNow ? `<div class="section">
     <div class="card">
       <div class="pocket">
@@ -132,6 +134,8 @@ function renderHome(){
       </div>
     </div>
   </div>` : ''}
+
+  ${bigCard(fm, r, today)}
 
   ${compareCard(fm, r, today)}
 
@@ -148,6 +152,75 @@ function renderHome(){
     </div>
   </div>
   <div style="height:20px"></div>`;
+}
+
+/** 마통 경고 카드 (v22)
+ *  저번 달 말 잔액과 지금(지난 달을 볼 땐 그 달 말)을 견줘서
+ *  늘었으면 빨강 + 경고, 줄었으면 파랑. 저번 달 증감도 함께 보여준다. */
+function mtongCard(fm, r){
+  const st = stockOf(r);
+  if(!st.mtongs.length) return '';
+  const isNow = sameFm(fm, fiscalOf(todayStr()));
+  const pv = shiftMonth(fm, -1);
+  const mc = st.mtongChange;                 // +면 더 빌려 씀
+  const before = st.mtong - mc;
+  const cls  = mc > 0 ? 'c-living' : mc < 0 ? 'c-income' : '';
+  const word = mc > 0 ? '늘었어요' : mc < 0 ? '줄었어요' : '그대로예요';
+
+  let prevLine = '';
+  if(monthHasTxn(pv)){
+    const pmc = stockOf(fiscalRange(pv.y, pv.m)).mtongChange;
+    prevLine = `<div class="cmp-row c-lbl2"><span>${pv.m+1}월에는</span>
+      <span class="num">${pmc>0?'+':pmc<0?'−':''}${won(Math.abs(pmc))} ${pmc>0?'늘었어요':pmc<0?'줄었어요':'그대로'}</span></div>`;
+  }
+
+  return `<div class="section">
+    <div class="card tap-card ${mc>0?'warn-card':''}" data-act="threeDetail" data-v="stock">
+      <div class="pocket">
+        <div class="pocket-k">🏦 마통 · ${pv.m+1}월 말보다 ${mc>0?'<span class="warn-badge">⚠️ 더 빌려 썼어요</span>':mc<0?'<span class="good-badge">갚는 중</span>':''}</div>
+        <div class="pocket-v num ${cls}">${mc===0?'':(mc>0?'+':'−')+won(Math.abs(mc))}<span class="pocket-suffix">${word}</span></div>
+        <div class="cmp">
+          <div class="cmp-row"><span>${pv.m+1}월 말</span><span class="num">${won(before)}</span></div>
+          <div class="cmp-row"><span>${isNow?'지금':(fm.m+1)+'월 말'}</span><span class="num ${cls}">${won(st.mtong)}</span></div>
+          ${prevLine}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/** 큰 지출 카드 (v22)
+ *  생활·이벤트 지출 중 기준 금액 이상인 것. 저번 달 같은 일차와 건수를 견준다. */
+function bigCard(fm, r, today){
+  const isNow = sameFm(fm, fiscalOf(today));
+  const lim = bigLimit();
+  const list = bigSpends(r);
+  const sum = list.reduce((s,t)=>s+t.amount, 0);
+
+  const pv = shiftMonth(fm, -1);
+  let cmp = '';
+  if(monthHasTxn(pv)){
+    const pr = fiscalRange(pv.y, pv.m);
+    const cut = isNow ? toStr(addDays(parseD(pr.start), Math.max(0, daysBetween(r.start, today)))) : null;
+    const pl = bigSpends(pr, cut);
+    const ps = pl.reduce((s,t)=>s+t.amount, 0);
+    const more = list.length > pl.length;
+    cmp = `<div class="pocket-sub ${more?'c-living':''}">${isNow?'저번 달 이맘때':'저번 달'} ${pl.length}건 · ${won(ps)}</div>`;
+  }
+
+  const top = list.slice(0, 3).map(t=>`<div class="cmp-row big-row" data-act="editTxn" data-id="${t.id}">
+      <span class="big-memo">${esc(t.memo || catName(t.categoryId))}${(t.tags||[]).map(x=>`<span class="tag">#${esc(x)}</span>`).join('')}
+        <span class="c-lbl3"> ${Number(t.date.slice(5,7))}/${Number(t.date.slice(8))}</span></span>
+      <span class="num c-living">${won(t.amount)}</span></div>`).join('');
+
+  return `<div class="section">
+    <div class="card"><div class="pocket">
+      <div class="pocket-k tap-inline" data-act="bigList">🔔 ${compact(lim)}원 넘는 지출 <span class="c-lbl3">생활·이벤트</span><span class="chev sm">›</span></div>
+      <div class="pocket-v num">${list.length}건<span class="pocket-suffix">${list.length?won(sum):'아직 없어요'}</span></div>
+      ${cmp}
+      ${top ? `<div class="cmp">${top}${list.length>3?`<div class="cmp-row c-lbl3 tap-inline" data-act="bigList"><span>외 ${list.length-3}건 더 보기</span><span>›</span></div>`:''}</div>` : ''}
+    </div></div>
+  </div>`;
 }
 
 /** 저번 달 같은 일차와 '남은 여유'를 비교한다.
@@ -410,7 +483,7 @@ function txnRow(t, assetId, bal){
   return `<div class="txn" data-act="editTxn" data-id="${t.id}">
     <div class="txn-cat">${c&&t.type!=='transfer'?c.emoji+' ':''}${esc(cat)}</div>
     <div class="txn-body">
-      <div class="txn-memo">${memo}${t.excludeFromTotal?'<span class="tag">미표기</span>':''}${t.type==='expense'&&t.bucket==='fixed'?'<span class="tag">고정</span>':''}${principalOf(t)?`<span class="tag">원금 ${compact(principalOf(t))}</span>`:''}${t.nextMonth?'<span class="tag">다음 달</span>':''}</div>
+      <div class="txn-memo">${memo}${t.excludeFromTotal?'<span class="tag">미표기</span>':''}${t.type==='expense'&&t.bucket==='fixed'?'<span class="tag">고정</span>':''}${principalOf(t)?`<span class="tag">원금 ${compact(principalOf(t))}</span>`:''}${t.nextMonth?'<span class="tag">다음 달</span>':''}${(t.tags||[]).map(x=>`<span class="tag">#${esc(x)}</span>`).join('')}</div>
     </div>
     <div class="txn-right">
       <div class="txn-amt ${cls} num">${amtTxt}</div>
@@ -569,7 +642,7 @@ function renderStats(){
     const sub = open ? `<div class="subitems">${e.items.sort(cmpDesc).map(t=>`
       <div class="subitem" data-act="editTxn" data-id="${t.id}">
         <div class="subitem-b"><div class="subitem-t">${esc(t.memo||catName(t.categoryId))}</div>
-          <div class="subitem-d">${t.date} · ${esc(assetName(t.assetId))}</div></div>
+          <div class="subitem-d">${t.date} · ${esc(assetName(t.assetId))}${t.tags&&t.tags.length?' · '+esc(tagText(t)):''}</div></div>
         <div class="subitem-v ${t.bucket==='fixed'?fixedClass():'c-living'} num">${won(t.amount)}</div>
       </div>`).join('')}</div>` : '';
     return `<div class="catrow">

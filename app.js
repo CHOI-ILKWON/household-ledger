@@ -86,7 +86,18 @@ const ACTS = {
   amtInput: (_,__,el)=>{
     const raw = el.value.replace(/[^0-9]/g,'');
     el.value = raw ? Number(raw).toLocaleString('ko-KR') : '';
+    // 내역 금액을 넣는 중이면 큰 지출 경고를 바로 갱신한다
+    if(el.id === 'f-amt' && draft){ draft.amount = Number(raw) || 0; updateBigHint(); }
   },
+  toggleTag: (_,v)=>{
+    syncDraft();
+    const tags = (draft.tags || []).slice();
+    const i = tags.indexOf(v);
+    if(i >= 0) tags.splice(i, 1); else tags.push(v);
+    draft.tags = tags;
+    renderTxnSheet();
+  },
+  bigList: ()=>openBigList(homeFm()),
 
   /* 자산/그룹/분류 편집 */
   newAsset: id=>openAssetEditor(null, id),
@@ -171,7 +182,7 @@ const ACTS = {
     download(`가계부_백업_${todayStr()}.json`, JSON.stringify(S,null,2), 'application/json');
   },
   exportCsv: ()=>{
-    const head = '날짜,종류,구분,자산,입금자산,분류,내용,금액,지출미표기\n';
+    const head = '날짜,종류,구분,자산,입금자산,분류,내용,금액,지출미표기,태그\n';
     const rows = S.txns.slice().sort(cmpAsc).map(t=>[
       t.date,
       t.type==='expense'?'지출':t.type==='income'?'수입':'이체',
@@ -181,7 +192,8 @@ const ACTS = {
       t.categoryId?catName(t.categoryId):'',
       (t.memo||'').replace(/,/g,' '),
       t.amount,
-      t.excludeFromTotal?'Y':''
+      t.excludeFromTotal?'Y':'',
+      (t.tags||[]).join(' ')
     ].join(',')).join('\n');
     download(`가계부_${todayStr()}.csv`, '﻿'+head+rows, 'text/csv');
   },
@@ -327,13 +339,13 @@ function copyText(t){
   }
   return Promise.resolve(fallbackCopy(t));
 }
-function toast(msg){
+function toast(msg, ms){
   let el = document.getElementById('toast');
   if(!el){ el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(()=>el.classList.remove('show'), 2200);
+  toast._t = setTimeout(()=>el.classList.remove('show'), ms || 2200);
 }
 function openAnalysisSheet(txt, failed){
   const body = `
@@ -418,6 +430,22 @@ document.getElementById('main').addEventListener('change', e=>{
     S.settings.monthStartDay = Number(e.target.value);
     ui.fm = fiscalOf(todayStr()); ui.statFm = fiscalOf(todayStr());
     save(); render();
+  }
+  // v22: 큰 지출 기준 · 빠른 태그
+  if(e.target.id === 'bigSpend'){
+    S.settings.bigSpend = Number(e.target.value);
+    save(); render();
+  }
+  if(e.target.id === 'quickTags'){
+    const seen = [];
+    for(const s of e.target.value.split(',')){
+      const t = s.replace(/#/g,'').trim();
+      if(t && seen.indexOf(t) < 0) seen.push(t);
+    }
+    if(seen.length) S.settings.quickTags = seen.slice(0, 12);
+    else delete S.settings.quickTags;   // 비우면 기본 태그로
+    save(); render();
+    toast('빠른 태그를 저장했어요');
   }
 });
 

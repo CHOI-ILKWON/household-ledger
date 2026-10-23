@@ -50,6 +50,20 @@ function renderSettings(){
   </div>
 
   <div class="section">
+    <div class="section-title">알림 · 태그</div>
+    <div class="card">
+      <div class="row"><div class="row-main"><div class="row-title">큰 지출 기준</div>
+        <div class="row-sub">생활·이벤트 지출이 이 금액 이상이면 알려줘요</div></div>
+        <div class="row-val"><select id="bigSpend">
+          ${[10000,20000,30000,50000,100000].map(v=>`<option value="${v}" ${v===bigLimit()?'selected':''}>${compact(v)}원</option>`).join('')}
+        </select></div></div>
+      <div class="field"><div class="field-k">빠른 태그</div>
+        <input type="text" id="quickTags" value="${esc(quickTags().join(', '))}" placeholder="혼자, 가족, 회사, 친구"></div>
+    </div>
+    <div class="hint">빠른 태그는 쉼표로 구분해요. 내역 추가 화면에서 한 번 눌러 붙이고, 분석용 텍스트에 태그별 합계가 들어가요. 비우면 기본 태그로 돌아가요.</div>
+  </div>
+
+  <div class="section">
     <div class="section-title">화면</div>
     <div class="card">
       <div class="row"><div class="row-main"><div class="row-title">테마</div></div></div>

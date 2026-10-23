@@ -489,6 +489,28 @@ function parseNotificationList(raw){
   return out;
 }
 
+/* ---------------- 빠른 태그 · 큰 지출 (v22) ----------------
+   둘 다 새 필드다. 내역의 tags, 설정의 quickTags / bigSpend 가 없으면
+   기본값으로 읽기만 하고, 기존 데이터는 다시 쓰지 않는다. */
+const DEFAULT_TAGS = ['혼자','가족','회사','친구'];
+function quickTags(){
+  const t = S.settings.quickTags;
+  return Array.isArray(t) && t.length ? t : DEFAULT_TAGS;
+}
+function bigLimit(){ return Number(S.settings.bigSpend) || 30000; }
+/** 큰 지출: 생활·이벤트 지출 중 기준 금액 이상. 고정지출과 대납은 뺀다. */
+function isBigSpend(t){
+  return t.type === 'expense' && !t.excludeFromTotal
+      && (t.bucket === 'living' || t.bucket === 'event')
+      && t.amount >= bigLimit();
+}
+/** 기간 r 의 큰 지출. cut 을 주면 그 날짜까지만 (저번 달 같은 일차 비교용) */
+function bigSpends(r, cut){
+  return S.txns.filter(t => isBigSpend(t) && inRange(statDate(t), r)
+                         && (!cut || statDate(t) <= cut)).sort(cmpDesc);
+}
+function tagText(t){ return (t.tags || []).map(x => '#' + x).join(' '); }
+
 function listTitle(bucket){ return bucket === 'income' ? '수입' : BUCKET_NAME[bucket]; }
 function listClass(bucket){ return bucket === 'income' ? 'c-income' : bucketClass(bucket); }
 
@@ -565,6 +587,8 @@ function analysisText(fm){
 
   const dp = smPv.living > 0 ? Math.round((sm.living - smPv.living)/smPv.living*100) : null;
   L.push(`  전월 생활지출    ${fmt(smPv.living)}원${dp===null ? '' : `   (${dp>0?'+':''}${dp}%)`}`);
+  const bg = bigSpends(r), bgPv = bigSpends(pvR);
+  L.push(`  ${compact(bigLimit())}원 이상 지출  ${bg.length}건 ${fmt(bg.reduce((s,t)=>s+t.amount,0))}원   (전월 ${bgPv.length}건 ${fmt(bgPv.reduce((s,t)=>s+t.amount,0))}원, 생활·이벤트)`);
   L.push('');
 
   const st = stockOf(r);
@@ -608,9 +632,20 @@ function analysisText(fm){
   items.sort(cmpAsc);
   if(!items.length) L.push('  (없음)');
   for(const t of items){
-    L.push(`  ${t.date}  ${pad(catName(t.categoryId),8)} ${pad(t.memo||'-',18)} ${fmt(t.amount)}원`);
+    const memo = [t.memo, tagText(t)].filter(Boolean).join(' ') || '-';
+    L.push(`  ${t.date}  ${pad(catName(t.categoryId),8)} ${pad(memo,18)} ${fmt(t.amount)}원`);
   }
   L.push('');
+
+  // 태그별 생활지출 — 누구와 쓸 때 새는지
+  const byTag = {};
+  for(const t of items) for(const tg of (t.tags || [])) byTag[tg] = (byTag[tg] || 0) + t.amount;
+  const tagKeys = Object.keys(byTag).sort((a,b)=>byTag[b]-byTag[a]);
+  if(tagKeys.length){
+    L.push('■ 태그별 생활지출 (누구와·어디서)');
+    for(const k of tagKeys) L.push(`  ${pad('#'+k,10)} ${fmt(byTag[k])}원`);
+    L.push('');
+  }
 
   L.push('■ 현재 자산 잔액');
   for(const g of S.groups){

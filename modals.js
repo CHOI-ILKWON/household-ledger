@@ -98,6 +98,12 @@ function renderTxnSheet(){
       <div class="field"><div class="field-k">내용</div>
         <input type="text" id="f-memo" placeholder="${isTr?'(선택)':'예) 점심 김치찌개'}" value="${esc(draft.memo)}"></div>
     </div></div>
+    <div class="hint big-hint" id="big-hint" ${bigHintText()?'':'hidden'}>${bigHintText()}</div>
+
+    ${!isTr ? `<div class="chips tagchips">${quickTags().map(tg=>{
+        const on = (draft.tags||[]).indexOf(tg) >= 0;
+        return `<button class="chip tagchip ${on?'on':''}" data-act="toggleTag" data-v="${esc(tg)}">#${esc(tg)}</button>`;
+      }).join('')}</div>` : ''}
 
     ${!isTr && recent.length ? `<div class="chips">${recent.map(cid=>{
         const c = catById(cid); if(!c) return '';
@@ -175,6 +181,24 @@ function principalBlock(){
   </div>`;
 }
 
+/** 금액을 넣는 동안 보여주는 큰 지출 경고 (v22).
+ *  저장 전에 "이번 달 몇 번째"인지 보여줘서 쓰기 전에 한 번 멈추게 한다. */
+function bigHintText(){
+  if(!draft || draft.type !== 'expense' || draft.excludeFromTotal) return '';
+  if(draft.bucket !== 'living' && draft.bucket !== 'event') return '';
+  if((draft.amount || 0) < bigLimit()) return '';
+  const fm = fiscalOf(draft.date || todayStr());
+  const n = bigSpends(fiscalRange(fm.y, fm.m)).filter(t => t.id !== draft.id).length + 1;
+  return `⚠️ ${compact(bigLimit())}원 넘는 지출이에요 · ${fm.m+1}월 <b>${n}번째</b>`;
+}
+function updateBigHint(){
+  const el = document.getElementById('big-hint');
+  if(!el) return;
+  const txt = bigHintText();
+  el.innerHTML = txt;
+  el.hidden = !txt;
+}
+
 /** keepOpen 이면 저장 후 시트를 열어 둔 채 다음 입력을 받는다.
  *  날짜·자산·항목·구분은 그대로 두고 금액과 내용만 비운다. */
 function saveTxn(keepOpen){
@@ -196,6 +220,12 @@ function saveTxn(keepOpen){
   else if(!draft.nextMonth) delete draft.nextMonth;
   if(draft.excludeFromTotal) draft.bucket = 'passthrough';
   else if(draft.bucket === 'passthrough') draft.bucket = 'living';
+  // 태그는 지출·수입에만, 비어 있으면 필드를 남기지 않는다
+  if(draft.type === 'transfer' || !draft.tags || !draft.tags.length) delete draft.tags;
+
+  // 큰 지출 알림: 새로 넣었거나, 고쳐서 기준을 넘게 됐을 때만
+  const old = draft.id ? S.txns.find(x=>x.id===draft.id) : null;
+  const alertBig = isBigSpend(draft) && !(old && isBigSpend(old));
 
   if(draft.id){
     const i = S.txns.findIndex(x=>x.id===draft.id);
@@ -207,23 +237,61 @@ function saveTxn(keepOpen){
   }
   save();
 
+  let bigMsg = '';
+  if(alertBig){
+    const fm = fiscalOf(statDate(draft));
+    const list = bigSpends(fiscalRange(fm.y, fm.m));
+    bigMsg = `⚠️ ${compact(bigLimit())}원 넘는 지출 ${fm.m+1}월 ${list.length}번째 · 합계 ${won(list.reduce((s,t)=>s+t.amount,0))}`;
+  }
+
   if(keepOpen){
     draft = {
       id:null, type:draft.type, date:draft.date, amount:0,
       assetId:draft.assetId, toAssetId:draft.toAssetId,
       categoryId:draft.categoryId, memo:'',
       bucket:draft.bucket, excludeFromTotal:draft.excludeFromTotal,
-      nextMonth:draft.nextMonth
+      nextMonth:draft.nextMonth,
+      tags: draft.tags ? draft.tags.slice() : undefined
     };
     render();
     renderTxnSheet();
     const amt = document.getElementById('f-amt');
     if(amt) amt.focus();
-    toast('저장했습니다. 이어서 입력하세요');
+    if(bigMsg) toast(bigMsg, 4000);
+    else toast('저장했습니다. 이어서 입력하세요');
     return;
   }
 
   closeSheet(); render();
+  if(bigMsg) toast(bigMsg, 4000);
+}
+
+/* ===================== 큰 지출 목록 (v22) ===================== */
+function openBigList(fm){
+  fm = fm || fiscalOf(todayStr());
+  const r = fiscalRange(fm.y, fm.m);
+  const list = bigSpends(r);
+  const total = list.reduce((s,t)=>s+t.amount, 0);
+  const body = `
+    <div class="pad" style="padding-bottom:6px">
+      <div class="pocket-k">${fmLabel(fm)} · ${rangeLabel(r)}</div>
+      <div class="pocket-v num c-living">${won(total)}</div>
+      <div class="pocket-sub">${list.length}건 · 생활·이벤트 지출 중 ${compact(bigLimit())}원 이상 · 기준은 설정에서 바꿔요</div>
+    </div>
+    <div class="section"><div class="card">
+      ${list.length ? list.map(t=>{
+        const c = catById(t.categoryId);
+        return `<div class="row tap" data-act="editTxnFromList" data-id="${t.id}">
+          <div class="row-main">
+            <div class="row-title">${c?esc(c.emoji||'')+' ':''}${esc(t.memo || catName(t.categoryId))}</div>
+            <div class="row-sub">${t.date} · ${esc(catName(t.categoryId))} · ${BUCKET_NAME[t.bucket]}${t.tags&&t.tags.length?' · '+esc(tagText(t)):''}</div>
+          </div>
+          <div class="row-val c-living num">${won(t.amount)}</div>
+        </div>`;
+      }).join('') : `<div class="empty">이 달에는 큰 지출이 없어요.</div>`}
+    </div></div>
+    <div style="height:20px"></div>`;
+  sheet('큰 지출', body, `<button data-act="closeSheet">닫기</button>`);
 }
 
 /* ===================== 자산 편집 ===================== */
@@ -561,7 +629,7 @@ function openBucketList(bucket, fm){
           return `<div class="row tap" data-act="editTxnFromList" data-id="${t.id}">
             <div class="row-main">
               <div class="row-title">${c?esc(c.emoji||'')+' ':''}${esc(t.memo || catName(t.categoryId))}</div>
-              <div class="row-sub">${esc(catName(t.categoryId))} · ${esc(assetName(t.assetId))}</div>
+              <div class="row-sub">${esc(catName(t.categoryId))} · ${esc(assetName(t.assetId))}${t.tags&&t.tags.length?' · '+esc(tagText(t)):''}</div>
             </div>
             <div class="row-val ${cls} num">${won(t.amount)}</div>
           </div>`;
